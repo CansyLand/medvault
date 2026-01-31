@@ -18,7 +18,10 @@ import {
   sealKeyForShare,
   unwrapPrivateKey,
   wrapPrivateKey,
-  type SealedInvitePayload
+  encryptJson,
+  decryptJson,
+  type SealedInvitePayload,
+  type EncryptedPayload
 } from "../lib/crypto";
 import {
   clearSession,
@@ -34,7 +37,9 @@ import {
   consumeShare,
   revokeShare,
   getShares,
-  type SharesResponse
+  transferToPatient,
+  type SharesResponse,
+  type EntityRole
 } from "../lib/api";
 import { useEventStream, type EntityState, type EntityEvent } from "./useEventStream";
 
@@ -69,12 +74,16 @@ export function useVault() {
   const [signedIn, setSignedIn] = useState(false);
   const [supportsPasskeys, setSupportsPasskeys] = useState(false);
   const [entityId, setEntityId] = useState<string | null>(null);
+  const [entityRole, setEntityRole] = useState<EntityRole | null>(null);
   const [entityPrivateKey, setEntityPrivateKey] = useState<Uint8Array | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [generatedInvite, setGeneratedInvite] = useState<{ code: string; expiresAt: number } | null>(null);
   const [isNewEntity, setIsNewEntity] = useState(false);
   const restoreAttemptedRef = useRef(false);
   const [restoreDone, setRestoreDone] = useState(false);
+  
+  // Ref to store role for new entity creation (set before passkey registration)
+  const pendingRoleRef = useRef<EntityRole | null>(null);
 
   // Share-related state
   const [sharePropertyName, setSharePropertyName] = useState("");
@@ -142,8 +151,11 @@ export function useVault() {
     return registration.id;
   };
 
-  const hydrateEntity = async (passkeyId: string, allowCreate: boolean) => {
-    const lookup = allowCreate ? await initEntity(passkeyId) : await initEntityIfExists(passkeyId);
+  const hydrateEntity = async (passkeyId: string, allowCreate: boolean, role?: EntityRole) => {
+    // Pass role for new entity creation
+    const lookup = allowCreate 
+      ? await initEntity(passkeyId, role || pendingRoleRef.current || undefined) 
+      : await initEntityIfExists(passkeyId);
     if (!lookup.entityId) throw new Error("No entity found.");
 
     let key: Uint8Array | null = null;
@@ -161,12 +173,16 @@ export function useVault() {
     }
 
     setEntityId(lookup.entityId);
+    setEntityRole(lookup.role);
     setEntityPrivateKey(key);
     setSignedIn(true);
+    
+    // Clear pending role ref
+    pendingRoleRef.current = null;
   };
 
   const loginMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (role?: EntityRole) => {
       const storedCredentialId = getLocal(CREDENTIAL_ID_KEY);
 
       let credentialId: string;
@@ -191,11 +207,12 @@ export function useVault() {
         credentialId = auth.id;
         setLocal(CREDENTIAL_ID_KEY, credentialId);
       } else {
-        // First time user - register a new passkey directly
+        // First time user - store role for later use and register a new passkey
+        pendingRoleRef.current = role || null;
         credentialId = await registerNewPasskey();
       }
 
-      await hydrateEntity(credentialId, true);
+      await hydrateEntity(credentialId, true, role);
       await createSession(credentialId);
     },
     onError: (err: unknown) => {
@@ -255,6 +272,7 @@ export function useVault() {
       );
       setSignedIn(false);
       setEntityId(null);
+      setEntityRole(null);
       setEntityPrivateKey(null);
       setInviteCode("");
       setGeneratedInvite(null);
@@ -354,6 +372,90 @@ export function useVault() {
     }
   });
 
+  // Transfer records to a patient (doctor only)
+  const transferMutation = useMutation({
+    mutationFn: async (params: { targetEntityId: string; propertyNames: string[] }) => {
+      if (!entityId || !entityPrivateKey) throw new Error("Not authenticated");
+      if (entityRole !== "doctor") throw new Error("Only doctors can transfer records");
+
+      const { targetEntityId, propertyNames } = params;
+      
+      // Decrypt each property and re-encrypt for transfer
+      const encryptedPayloads: Record<string, EncryptedPayload> = {};
+      const properties = eventStream.state?.properties ?? {};
+      
+      for (const propertyName of propertyNames) {
+        const value = properties[propertyName];
+        if (!value) {
+          console.warn(`[Transfer] Property ${propertyName} not found, skipping`);
+          continue;
+        }
+        
+        // Create encrypted payload for the patient's vault
+        // We re-encrypt the PropertySet event data with the patient as the target
+        const eventData = {
+          type: "PropertySet",
+          data: { key: propertyName, value }
+        };
+        const encrypted = await encryptJson(entityPrivateKey, eventData);
+        encryptedPayloads[propertyName] = encrypted;
+      }
+
+      if (Object.keys(encryptedPayloads).length === 0) {
+        throw new Error("No valid properties to transfer");
+      }
+
+      // Create sealed key so we (doctor) can continue reading from patient
+      const shareCode = generateShareCode();
+      const sealedKey = await sealKeyForShare(entityPrivateKey, shareCode);
+
+      // Call transfer API
+      const result = await transferToPatient(
+        targetEntityId,
+        propertyNames,
+        encryptedPayloads,
+        sealedKey
+      );
+
+      // Delete transferred properties from our vault
+      for (const propertyName of result.transferred) {
+        eventStream.deleteProperty(propertyName);
+        
+        // Emit transfer event for audit log
+        const record = properties[propertyName];
+        let recordTitle = propertyName;
+        try {
+          const parsed = JSON.parse(record);
+          recordTitle = parsed.title || propertyName;
+        } catch {}
+        
+        eventStream.appendEvent({
+          type: "RecordTransferred",
+          data: {
+            recordKey: propertyName,
+            toEntityId: targetEntityId,
+            recordTitle,
+          },
+        });
+      }
+
+      // Register the shared key so we can read from patient
+      if (result.shareCode) {
+        setPendingShareCodes(prev => new Map(prev).set(targetEntityId, shareCode));
+      }
+
+      // Refresh shares list
+      const updatedShares = await getShares();
+      setShares(updatedShares);
+
+      toast.success(`Transferred ${result.transferred.length} record(s) to patient`);
+      return result;
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to transfer records.");
+    }
+  });
+
   const restoreMutation = useMutation({
     mutationFn: async () => {
       const session = await getSession();
@@ -396,6 +498,7 @@ export function useVault() {
       createShareMutation.isPending ||
       consumeShareMutation.isPending ||
       revokeShareMutation.isPending ||
+      transferMutation.isPending ||
       (restoreMutation.isPending && !restoreDone),
     [
       loginMutation.isPending,
@@ -405,6 +508,7 @@ export function useVault() {
       createShareMutation.isPending,
       consumeShareMutation.isPending,
       revokeShareMutation.isPending,
+      transferMutation.isPending,
       restoreMutation.isPending,
       restoreDone
     ]
@@ -416,12 +520,13 @@ export function useVault() {
     restoreMutation.mutate();
   }, [signedIn, restoreMutation]);
 
-  const login = () => loginMutation.mutateAsync();
+  const login = (role?: EntityRole) => loginMutation.mutateAsync(role);
 
   const logout = async () => {
     await clearSession();
     setSignedIn(false);
     setEntityId(null);
+    setEntityRole(null);
     setEntityPrivateKey(null);
     setInviteCode("");
     setGeneratedInvite(null);
@@ -439,6 +544,10 @@ export function useVault() {
   const removeShare = (params: { targetEntityId?: string; sourceEntityId?: string; propertyName: string }) =>
     revokeShareMutation.mutateAsync(params);
 
+  // Transfer action (doctor only)
+  const transferRecords = (targetEntityId: string, propertyNames: string[]) =>
+    transferMutation.mutateAsync({ targetEntityId, propertyNames });
+
   // Record rename - emit event for audit log
   const renameRecord = (key: string, oldName: string, newName: string) => {
     eventStream.appendEvent({
@@ -451,6 +560,7 @@ export function useVault() {
     signedIn,
     supportsPasskeys,
     entityId,
+    entityRole,
     hasKey: !!entityPrivateKey,
     // Entity state comes from real-time event stream
     state: eventStream.state,
@@ -489,5 +599,8 @@ export function useVault() {
     createShareInvite,
     acceptShare,
     removeShare,
+    // Transfer-related (doctor only)
+    isTransferring: transferMutation.isPending,
+    transferRecords,
   };
 }

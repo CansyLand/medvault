@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon } from "./Icons";
+import type { EntityRole } from "../lib/api";
 
 type NavItem = {
   id: string;
@@ -23,14 +24,21 @@ type SidebarProps = {
   onSectionChange: (section: string) => void;
   connected: boolean;
   onLogout: () => void;
+  entityRole?: EntityRole | null;
 };
 
-export function Sidebar({ activeSection, onSectionChange, connected, onLogout }: SidebarProps) {
+export function Sidebar({ activeSection, onSectionChange, connected, onLogout, entityRole }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleNavClick = (id: string) => {
     onSectionChange(id);
     setMobileOpen(false);
+  };
+
+  const getRoleLabel = (role: EntityRole | null | undefined) => {
+    if (role === "doctor") return "Healthcare Provider";
+    if (role === "patient") return "Patient";
+    return null;
   };
 
   return (
@@ -59,6 +67,11 @@ export function Sidebar({ activeSection, onSectionChange, connected, onLogout }:
           <div className={`status-indicator ${connected ? "connected" : "disconnected"}`}>
             {connected ? "● Encrypted & Live" : "○ Offline"}
           </div>
+          {entityRole && (
+            <div className={`role-badge ${entityRole}`}>
+              {getRoleLabel(entityRole)}
+            </div>
+          )}
         </div>
 
         <nav className="sidebar-nav">

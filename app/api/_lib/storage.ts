@@ -6,6 +6,7 @@ const entitiesRoot = path.join(process.cwd(), "entities");
 const passkeyMapFile = path.join(entitiesRoot, "_passkeys.json");
 const inviteMapFile = path.join(entitiesRoot, "_invites.json");
 const shareMapFile = path.join(entitiesRoot, "_shares.json");
+const transfersFile = path.join(entitiesRoot, "_transfers.json");
 
 type PasskeyMap = Record<string, string>;
 type InviteRecord = {
@@ -14,6 +15,20 @@ type InviteRecord = {
   expiresAt: number;
 };
 type InviteMap = Record<string, InviteRecord>;
+
+// Entity roles for access control
+export type EntityRole = "doctor" | "patient";
+
+// Transfer records for audit trail
+export type TransferRecord = {
+  id: string;
+  recordKey: string;
+  fromEntityId: string;
+  toEntityId: string;
+  transferredAt: string;
+  autoShareGranted: boolean;
+};
+type TransferMap = TransferRecord[];
 
 export type ShareRecord = {
   sourceEntityId: string;
@@ -278,4 +293,66 @@ export async function removeIncomingShare(
     return true;
   }
   return false;
+}
+
+// =====================
+// Entity Role Storage
+// =====================
+
+function getEntityRolePath(entityId: string): string {
+  return path.join(entitiesRoot, entityId, "role.json");
+}
+
+export async function getEntityRole(entityId: string): Promise<EntityRole | null> {
+  const filePath = getEntityRolePath(entityId);
+  const data = await readJsonFile<{ role: EntityRole } | null>(filePath, null);
+  return data?.role ?? null;
+}
+
+export async function setEntityRole(entityId: string, role: EntityRole): Promise<void> {
+  await ensureEntityDir(entityId);
+  await writeJsonFile(getEntityRolePath(entityId), { role });
+}
+
+// =====================
+// Transfer Records
+// =====================
+
+export async function getTransfers(): Promise<TransferRecord[]> {
+  return readJsonFile<TransferMap>(transfersFile, []);
+}
+
+export async function addTransferRecord(record: Omit<TransferRecord, "id">): Promise<TransferRecord> {
+  const transfers = await getTransfers();
+  const newRecord: TransferRecord = {
+    ...record,
+    id: randomUUID(),
+  };
+  transfers.push(newRecord);
+  await writeJsonFile(transfersFile, transfers);
+  return newRecord;
+}
+
+export async function getTransfersForEntity(entityId: string): Promise<TransferRecord[]> {
+  const transfers = await getTransfers();
+  return transfers.filter(
+    (t) => t.fromEntityId === entityId || t.toEntityId === entityId
+  );
+}
+
+// =====================
+// Entity Event Storage (for transfers)
+// =====================
+
+export async function deleteEntityProperty(entityId: string, propertyKey: string): Promise<void> {
+  // This is used during transfers to remove the property from the source entity
+  // The actual deletion happens via the event stream, but we need to track it
+  const filePath = path.join(entitiesRoot, entityId, `prop_${propertyKey}.json`);
+  try {
+    await fs.unlink(filePath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+  }
 }

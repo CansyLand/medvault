@@ -201,3 +201,57 @@ export async function openSharedKey(
 export function generateShareCode(length = 12): string {
   return generateInviteCode(length);
 }
+
+// Transfer encryption: Encrypt data with a transfer code for patient to decrypt
+export async function encryptForTransfer(
+  data: unknown,
+  transferCode: string
+): Promise<SealedInvitePayload> {
+  const sodiumLib = await getSodium();
+  const salt = sodiumLib.randombytes_buf(sodiumLib.crypto_pwhash_SALTBYTES);
+  const nonce = sodiumLib.randombytes_buf(sodiumLib.crypto_secretbox_NONCEBYTES);
+  const opslimit = sodiumLib.crypto_pwhash_OPSLIMIT_MODERATE;
+  const memlimit = sodiumLib.crypto_pwhash_MEMLIMIT_MODERATE;
+  const kdf = "crypto_pwhash_MODERATE";
+  const key = sodiumLib.crypto_pwhash(
+    sodiumLib.crypto_secretbox_KEYBYTES,
+    transferCode,
+    salt,
+    opslimit,
+    memlimit,
+    sodiumLib.crypto_pwhash_ALG_DEFAULT
+  );
+  const plaintext = textEncoder.encode(JSON.stringify(data));
+  const ciphertext = sodiumLib.crypto_secretbox_easy(plaintext, nonce, key);
+  return {
+    version: 1,
+    alg: "XSALSA20-POLY1305",
+    nonce: toBase64(nonce),
+    salt: toBase64(salt),
+    ciphertext: toBase64(ciphertext),
+    opslimit,
+    memlimit,
+    kdf
+  };
+}
+
+// Decrypt transfer data using transfer code
+export async function decryptTransfer<T>(
+  sealed: SealedInvitePayload,
+  transferCode: string
+): Promise<T> {
+  const sodiumLib = await getSodium();
+  const salt = fromBase64(sealed.salt);
+  const nonce = fromBase64(sealed.nonce);
+  const ciphertext = fromBase64(sealed.ciphertext);
+  const key = sodiumLib.crypto_pwhash(
+    sodiumLib.crypto_secretbox_KEYBYTES,
+    transferCode,
+    salt,
+    sealed.opslimit,
+    sealed.memlimit,
+    sodiumLib.crypto_pwhash_ALG_DEFAULT
+  );
+  const plaintext = sodiumLib.crypto_secretbox_open_easy(ciphertext, nonce, key);
+  return JSON.parse(textDecoder.decode(plaintext)) as T;
+}

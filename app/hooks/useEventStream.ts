@@ -12,7 +12,9 @@ export type EventType =
   | "RecordRenamed"
   | "ShareCreated"
   | "ShareAccepted"
-  | "ShareRevoked";
+  | "ShareRevoked"
+  | "RecordTransferred"
+  | "RecordReceived";
 
 export type EntityCreatedData = {
   entityId: string;
@@ -48,6 +50,18 @@ export type RecordRenamedData = {
   newName: string;
 };
 
+export type RecordTransferredData = {
+  recordKey: string;
+  toEntityId: string;
+  recordTitle?: string;
+};
+
+export type RecordReceivedData = {
+  recordKey: string;
+  fromEntityId: string;
+  recordTitle?: string;
+};
+
 export type EventData = 
   | EntityCreatedData 
   | PropertySetData 
@@ -55,7 +69,9 @@ export type EventData =
   | RecordRenamedData
   | ShareCreatedData
   | ShareAcceptedData
-  | ShareRevokedData;
+  | ShareRevokedData
+  | RecordTransferredData
+  | RecordReceivedData;
 
 // Decrypted event (client-side only)
 export type EntityEvent = {

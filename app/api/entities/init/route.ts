@@ -3,12 +3,16 @@ import { NextResponse } from "next/server";
 import {
   createEntity,
   getEntityIdForPasskey,
-  linkPasskeyToEntity
+  getEntityRole,
+  linkPasskeyToEntity,
+  setEntityRole,
+  type EntityRole
 } from "../../_lib/storage";
 
 type InitRequest = {
   passkeyId?: string;
   createIfMissing?: boolean;
+  role?: EntityRole;
 };
 
 export async function POST(request: Request) {
@@ -20,14 +24,20 @@ export async function POST(request: Request) {
 
   const existingEntityId = await getEntityIdForPasskey(passkeyId);
   if (existingEntityId) {
-    return NextResponse.json({ entityId: existingEntityId, created: false });
+    const role = await getEntityRole(existingEntityId);
+    return NextResponse.json({ entityId: existingEntityId, created: false, role });
   }
 
   if (body.createIfMissing === false) {
-    return NextResponse.json({ entityId: null, created: false });
+    return NextResponse.json({ entityId: null, created: false, role: null });
   }
 
   const entityId = await createEntity();
   await linkPasskeyToEntity(passkeyId, entityId);
-  return NextResponse.json({ entityId, created: true });
+  
+  // Set role if provided (required for new entities)
+  const role = body.role || "patient"; // Default to patient if not specified
+  await setEntityRole(entityId, role);
+  
+  return NextResponse.json({ entityId, created: true, role });
 }

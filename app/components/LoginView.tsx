@@ -1,14 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { ShieldIcon } from "./Icons";
+import type { EntityRole } from "../lib/api";
 
 type LoginViewProps = {
-  onLogin: () => void;
+  onLogin: (role: EntityRole) => void;
   isLoggingIn: boolean;
   supportsPasskeys: boolean;
 };
 
 export function LoginView({ onLogin, isLoggingIn, supportsPasskeys }: LoginViewProps) {
+  const [selectedRole, setSelectedRole] = useState<EntityRole>("patient");
+
+  const handleLogin = () => {
+    onLogin(selectedRole);
+  };
+
   return (
     <main className="login-page">
       <div className="login-card">
@@ -23,9 +31,37 @@ export function LoginView({ onLogin, isLoggingIn, supportsPasskeys }: LoginViewP
           <br />
           Your medical records never leave your device unencrypted.
         </p>
+
+        {/* Role Selection */}
+        <div className="role-selection">
+          <p className="role-label">I am a:</p>
+          <div className="role-toggle">
+            <button
+              type="button"
+              className={`role-btn ${selectedRole === "patient" ? "active" : ""}`}
+              onClick={() => setSelectedRole("patient")}
+              disabled={isLoggingIn}
+            >
+              <span className="role-icon">🏥</span>
+              <span className="role-text">Patient</span>
+              <span className="role-desc">Store & control my medical records</span>
+            </button>
+            <button
+              type="button"
+              className={`role-btn ${selectedRole === "doctor" ? "active" : ""}`}
+              onClick={() => setSelectedRole("doctor")}
+              disabled={isLoggingIn}
+            >
+              <span className="role-icon">👨‍⚕️</span>
+              <span className="role-text">Healthcare Provider</span>
+              <span className="role-desc">Upload & transfer patient records</span>
+            </button>
+          </div>
+        </div>
+
         <button
           className="login-btn"
-          onClick={onLogin}
+          onClick={handleLogin}
           disabled={!supportsPasskeys || isLoggingIn}
         >
           {isLoggingIn ? "Signing in..." : "Sign in with Passkey"}

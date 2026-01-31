@@ -1,6 +1,9 @@
+export type EntityRole = "doctor" | "patient";
+
 export type InitResponse = {
   entityId: string | null;
   created: boolean;
+  role: EntityRole | null;
 };
 
 export type InviteConsumeResponse = {
@@ -19,11 +22,11 @@ export async function fetchJson<T>(
   return (await response.json()) as T;
 }
 
-export async function initEntity(passkeyId: string): Promise<InitResponse> {
+export async function initEntity(passkeyId: string, role?: EntityRole): Promise<InitResponse> {
   return fetchJson<InitResponse>("/api/entities/init", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ passkeyId, createIfMissing: true })
+    body: JSON.stringify({ passkeyId, createIfMissing: true, role })
   });
 }
 
@@ -130,4 +133,36 @@ export async function revokeShare(
 
 export async function getShares(): Promise<SharesResponse> {
   return fetchJson<SharesResponse>("/api/shares");
+}
+
+// Transfer types
+export type TransferRequest = {
+  targetEntityId: string;
+  propertyNames: string[];
+  encryptedPayloads: Record<string, unknown>; // propertyName -> encrypted payload for target
+  sealedKeyForSource: unknown; // wrapped key so source (doctor) can continue reading
+};
+
+export type TransferResponse = {
+  transferred: string[];
+  shareCode: string;
+};
+
+// Transfer API functions
+export async function transferToPatient(
+  targetEntityId: string,
+  propertyNames: string[],
+  encryptedPayloads: Record<string, unknown>,
+  sealedKeyForSource: unknown
+): Promise<TransferResponse> {
+  return fetchJson<TransferResponse>("/api/shares/transfer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetEntityId, propertyNames, encryptedPayloads, sealedKeyForSource })
+  });
+}
+
+export async function getEntityRole(entityId: string): Promise<EntityRole | null> {
+  const response = await fetchJson<{ role: EntityRole | null }>(`/api/entities/role?entityId=${entityId}`);
+  return response.role;
 }

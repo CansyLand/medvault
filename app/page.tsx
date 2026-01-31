@@ -97,6 +97,7 @@ export default function HomePage() {
           onSectionChange={setActiveSection}
           connected={vault.connected}
           onLogout={vault.logout}
+          entityRole={vault.entityRole}
         />
 
         <main className="main-content">
@@ -138,6 +139,9 @@ export default function HomePage() {
               disabled={vault.isBusy}
               isCreating={vault.isCreatingShare}
               isAccepting={vault.isAcceptingShare}
+              entityRole={vault.entityRole}
+              onTransferRecords={vault.transferRecords}
+              isTransferring={vault.isTransferring}
             />
           )}
 
