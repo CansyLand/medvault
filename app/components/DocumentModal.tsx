@@ -11,6 +11,17 @@ interface DocumentModalProps {
   onClose: () => void;
 }
 
+// Convert field keys to Title Case for display
+function formatFieldName(key: string): string {
+  return key
+    .replace(/_/g, ' ')           // Replace underscores with spaces
+    .replace(/([A-Z])/g, ' $1')   // Add space before capital letters
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 export function DocumentModal({ record, pdfBase64, isOpen, onClose }: DocumentModalProps) {
   if (!isOpen || !record) return null;
 
@@ -131,7 +142,7 @@ export function DocumentModal({ record, pdfBase64, isOpen, onClose }: DocumentMo
                     borderBottom: '1px solid var(--border)',
                   }}>
                     <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>
-                      {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                      {formatFieldName(key)}
                     </span>
                     <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.9rem' }}>
                       {typeof value === 'object' ? JSON.stringify(value) : String(value)}

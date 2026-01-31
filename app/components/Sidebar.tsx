@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CopyableEntityId } from "./CopyableEntityId";
 import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon } from "./Icons";
 
 type NavItem = {
@@ -22,12 +21,11 @@ const navItems: NavItem[] = [
 type SidebarProps = {
   activeSection: string;
   onSectionChange: (section: string) => void;
-  entityId: string | null;
   connected: boolean;
   onLogout: () => void;
 };
 
-export function Sidebar({ activeSection, onSectionChange, entityId, connected, onLogout }: SidebarProps) {
+export function Sidebar({ activeSection, onSectionChange, connected, onLogout }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleNavClick = (id: string) => {
@@ -77,12 +75,6 @@ export function Sidebar({ activeSection, onSectionChange, entityId, connected, o
         </nav>
 
         <div className="sidebar-footer">
-          {entityId && (
-            <div className="entity-info">
-              <span className="entity-label">Vault ID</span>
-              <CopyableEntityId entityId={entityId} short className="entity-id" />
-            </div>
-          )}
           <button className="logout-btn" onClick={onLogout}>
             Log out
           </button>

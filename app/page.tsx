@@ -95,7 +95,6 @@ export default function HomePage() {
         <Sidebar
           activeSection={activeSection}
           onSectionChange={setActiveSection}
-          entityId={vault.entityId}
           connected={vault.connected}
           onLogout={vault.logout}
         />
