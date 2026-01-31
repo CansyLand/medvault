@@ -2232,3 +2232,46 @@ button.danger:hover:not(:disabled) {
     display: none;
   }
 }
+
+/* ==================== */
+/* Profile Info Grid */
+/* ==================== */
+
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.profile-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.profile-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.profile-value {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.profile-value.font-mono {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .profile-info-grid {
+    grid-template-columns: 1fr;
+  }
+}

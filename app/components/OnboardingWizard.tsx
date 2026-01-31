@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ShieldIcon } from "./Icons";
 import type { EntityRole } from "../lib/api";
-import type { PatientProfile, ProviderProfile } from "../types/medical";
+import type { PatientProfile, ProviderProfile, UserProfile } from "../types/medical";
+import { isPatientProfile, isProviderProfile } from "../types/medical";
 import { PatientOnboarding } from "./onboarding/PatientOnboarding";
 import { ProviderOnboarding } from "./onboarding/ProviderOnboarding";
 
@@ -11,9 +12,19 @@ interface OnboardingWizardProps {
   role: EntityRole;
   onComplete: (profile: PatientProfile | ProviderProfile) => Promise<void>;
   isSubmitting?: boolean;
+  initialProfile?: UserProfile | null;
+  isEditing?: boolean;
+  onCancel?: () => void;
 }
 
-export function OnboardingWizard({ role, onComplete, isSubmitting }: OnboardingWizardProps) {
+export function OnboardingWizard({ 
+  role, 
+  onComplete, 
+  isSubmitting,
+  initialProfile,
+  isEditing = false,
+  onCancel,
+}: OnboardingWizardProps) {
   const isPatient = role === "patient";
   const totalSteps = isPatient ? 5 : 4;
   const [currentStep, setCurrentStep] = useState(1);
@@ -34,19 +45,45 @@ export function OnboardingWizard({ role, onComplete, isSubmitting }: OnboardingW
     ? ["Basic Info", "Contact", "Emergency", "Medical", "Insurance"]
     : ["Personal", "Organization", "Credentials", "Contact"];
 
+  // Get initial profile data for edit mode
+  const patientInitialProfile = initialProfile && isPatientProfile(initialProfile) ? initialProfile : undefined;
+  const providerInitialProfile = initialProfile && isProviderProfile(initialProfile) ? initialProfile : undefined;
+
   return (
     <main className="onboarding-page">
       <div className="onboarding-container">
         {/* Header */}
         <div className="onboarding-header">
+          {isEditing && onCancel && (
+            <button 
+              className="edit-cancel-btn"
+              onClick={onCancel}
+              style={{
+                position: "absolute",
+                top: "1rem",
+                right: "1rem",
+                background: "transparent",
+                border: "none",
+                color: "var(--text-muted)",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          )}
           <div className="onboarding-logo">
             <ShieldIcon className="w-8 h-8" />
           </div>
-          <h1 className="font-merriweather">Welcome to MedVault</h1>
+          <h1 className="font-merriweather">
+            {isEditing ? "Edit Profile" : "Welcome to MedVault"}
+          </h1>
           <p className="onboarding-subtitle">
-            {isPatient
-              ? "Let's set up your personal health vault"
-              : "Let's set up your healthcare provider account"}
+            {isEditing
+              ? "Update your profile information"
+              : isPatient
+                ? "Let's set up your personal health vault"
+                : "Let's set up your healthcare provider account"}
           </p>
         </div>
 
@@ -81,6 +118,7 @@ export function OnboardingWizard({ role, onComplete, isSubmitting }: OnboardingW
               onBack={handleBack}
               onComplete={onComplete}
               isSubmitting={isSubmitting}
+              initialProfile={patientInitialProfile}
             />
           ) : (
             <ProviderOnboarding
@@ -90,6 +128,7 @@ export function OnboardingWizard({ role, onComplete, isSubmitting }: OnboardingW
               onBack={handleBack}
               onComplete={onComplete}
               isSubmitting={isSubmitting}
+              initialProfile={providerInitialProfile}
             />
           )}
         </div>

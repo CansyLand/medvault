@@ -11,6 +11,7 @@ interface PatientOnboardingProps {
   onBack: () => void;
   onComplete: (profile: PatientProfile) => Promise<void>;
   isSubmitting?: boolean;
+  initialProfile?: PatientProfile;
 }
 
 export function PatientOnboarding({
@@ -20,8 +21,11 @@ export function PatientOnboarding({
   onBack,
   onComplete,
   isSubmitting,
+  initialProfile,
 }: PatientOnboardingProps) {
-  const [profile, setProfile] = useState<PatientProfile>(createDefaultPatientProfile());
+  const [profile, setProfile] = useState<PatientProfile>(
+    initialProfile || createDefaultPatientProfile()
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const updateProfile = <K extends keyof PatientProfile>(key: K, value: PatientProfile[K]) => {

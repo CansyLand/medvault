@@ -20,6 +20,7 @@ import { PropertyKeyPrefixes, getDisplayName } from "./types/medical";
 export default function HomePage() {
   const vault = useVault();
   const [activeSection, setActiveSection] = useState("records");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Show login view if not signed in
   if (!vault.signedIn) {
@@ -97,6 +98,35 @@ export default function HomePage() {
           role={vault.entityRole}
           onComplete={vault.saveProfile}
           isSubmitting={vault.isSavingProfile}
+        />
+      </>
+    );
+  }
+
+  // Show profile editing wizard
+  if (isEditingProfile && vault.entityRole) {
+    return (
+      <>
+        <Toaster
+          position="bottom-center"
+          toastOptions={{
+            style: {
+              background: "#ffffff",
+              color: "#0f172a",
+              border: "1px solid #e2e8f0"
+            }
+          }}
+        />
+        <OnboardingWizard
+          role={vault.entityRole}
+          onComplete={async (profile) => {
+            await vault.saveProfile(profile);
+            setIsEditingProfile(false);
+          }}
+          isSubmitting={vault.isSavingProfile}
+          initialProfile={vault.userProfile}
+          isEditing
+          onCancel={() => setIsEditingProfile(false)}
         />
       </>
     );
@@ -216,7 +246,10 @@ export default function HomePage() {
           {activeSection === "settings" && (
             <SettingsSection
               entityId={vault.entityId}
+              entityRole={vault.entityRole}
+              userProfile={vault.userProfile}
               onReset={vault.resetEverything}
+              onEditProfile={() => setIsEditingProfile(true)}
               disabled={vault.isBusy}
               isResetting={vault.isResetting}
             />

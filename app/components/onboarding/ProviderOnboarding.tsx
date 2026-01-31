@@ -11,6 +11,7 @@ interface ProviderOnboardingProps {
   onBack: () => void;
   onComplete: (profile: ProviderProfile) => Promise<void>;
   isSubmitting?: boolean;
+  initialProfile?: ProviderProfile;
 }
 
 export function ProviderOnboarding({
@@ -20,8 +21,11 @@ export function ProviderOnboarding({
   onBack,
   onComplete,
   isSubmitting,
+  initialProfile,
 }: ProviderOnboardingProps) {
-  const [profile, setProfile] = useState<ProviderProfile>(createDefaultProviderProfile());
+  const [profile, setProfile] = useState<ProviderProfile>(
+    initialProfile || createDefaultProviderProfile()
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const updateProfile = <K extends keyof ProviderProfile>(key: K, value: ProviderProfile[K]) => {
