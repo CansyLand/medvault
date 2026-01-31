@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { DataRequest, RequestedDataItem, MedicalRecord, UploadedDocument } from '../types'
+import {
+	DataRequest,
+	RequestedDataItem,
+	MedicalRecord,
+	UploadedDocument,
+} from '../types'
 import {
 	ActivityIcon,
 	AlertCircleIcon,
@@ -13,7 +18,10 @@ interface AccessRequestsPanelProps {
 	requests: DataRequest[]
 	mockRecords: MedicalRecord[]
 	uploadedDocs: UploadedDocument[]
-	onApproveSelected: (requestId: string, selectedItems: RequestedDataItem[]) => void
+	onApproveSelected: (
+		requestId: string,
+		selectedItems: RequestedDataItem[],
+	) => void
 	onApproveAll: (requestId: string) => void
 	onDeny: (requestId: string) => void
 }
@@ -21,16 +29,30 @@ interface AccessRequestsPanelProps {
 // Helper to get icon based on item type
 const getItemIcon = (name: string, source: string) => {
 	const nameLower = name.toLowerCase()
-	if (nameLower.includes('blood') || nameLower.includes('lab') || nameLower.includes('panel')) {
+	if (
+		nameLower.includes('blood') ||
+		nameLower.includes('lab') ||
+		nameLower.includes('panel')
+	) {
 		return <ActivityIcon className='w-5 h-5 text-blue-500' />
 	}
 	if (nameLower.includes('allergy') || nameLower.includes('alert')) {
 		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
 	}
-	if (nameLower.includes('medication') || nameLower.includes('rx') || nameLower.includes('prescription')) {
+	if (
+		nameLower.includes('medication') ||
+		nameLower.includes('rx') ||
+		nameLower.includes('prescription')
+	) {
 		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
 	}
-	if (nameLower.includes('x-ray') || nameLower.includes('mri') || nameLower.includes('imaging') || nameLower.includes('scan') || nameLower.includes('thorax')) {
+	if (
+		nameLower.includes('x-ray') ||
+		nameLower.includes('mri') ||
+		nameLower.includes('imaging') ||
+		nameLower.includes('scan') ||
+		nameLower.includes('thorax')
+	) {
 		return <ActivityIcon className='w-5 h-5 text-blue-500' />
 	}
 	// Default based on source
@@ -49,11 +71,12 @@ export const AccessRequestsPanel: React.FC<AccessRequestsPanelProps> = ({
 	onDeny,
 }) => {
 	const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
-		requests.length > 0 ? requests[0].id : null
+		requests.length > 0 ? requests[0].id : null,
 	)
 	const [itemToggles, setItemToggles] = useState<Record<string, boolean>>({})
 
-	const selectedRequest = requests.find((r) => r.id === selectedRequestId) || null
+	const selectedRequest =
+		requests.find((r) => r.id === selectedRequestId) || null
 
 	// Initialize toggles when selected request changes
 	useEffect(() => {
@@ -76,7 +99,7 @@ export const AccessRequestsPanel: React.FC<AccessRequestsPanelProps> = ({
 	const handleApproveSelected = () => {
 		if (!selectedRequest) return
 		const selectedItems = selectedRequest.requestedItems.filter(
-			(item) => itemToggles[item.id]
+			(item) => itemToggles[item.id],
 		)
 		onApproveSelected(selectedRequest.id, selectedItems)
 	}
@@ -181,16 +204,12 @@ export const AccessRequestsPanel: React.FC<AccessRequestsPanelProps> = ({
 									<button
 										onClick={() => handleToggle(item.id)}
 										className={`relative w-12 h-7 rounded-full transition-colors ${
-											itemToggles[item.id]
-												? 'bg-blue-500'
-												: 'bg-slate-300'
+											itemToggles[item.id] ? 'bg-blue-500' : 'bg-slate-300'
 										}`}
 									>
 										<div
 											className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-												itemToggles[item.id]
-													? 'translate-x-6'
-													: 'translate-x-1'
+												itemToggles[item.id] ? 'translate-x-6' : 'translate-x-1'
 											}`}
 										/>
 									</button>
@@ -259,8 +278,9 @@ export const AccessRequestsPanel: React.FC<AccessRequestsPanelProps> = ({
 									Your data remains encrypted
 								</h5>
 								<p className='text-xs text-slate-600 mt-1 leading-relaxed'>
-									Approving a request doesn't send your raw data to their servers permanently. 
-									It grants a timed, verifiable cryptographic key to view the specific fields you've allowed. 
+									Approving a request doesn't send your raw data to their
+									servers permanently. It grants a timed, verifiable
+									cryptographic key to view the specific fields you've allowed.
 									You can revoke access at any time from the Consents tab.
 								</p>
 							</div>
@@ -271,9 +291,7 @@ export const AccessRequestsPanel: React.FC<AccessRequestsPanelProps> = ({
 				<div className='flex-1 bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-center'>
 					<div className='text-center text-slate-400'>
 						<ClockIcon className='w-12 h-12 mx-auto mb-4 opacity-30' />
-						<p className='text-sm font-medium'>
-							Select a request to review
-						</p>
+						<p className='text-sm font-medium'>Select a request to review</p>
 					</div>
 				</div>
 			)}

@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Edge } from '@xyflow/react'
 import { MedicalRecord, UploadedDocument } from '../types'
-import {
-	ActivityIcon,
-	AlertCircleIcon,
-} from './Icons'
+import { ActivityIcon, AlertCircleIcon } from './Icons'
 
 interface DataItem {
 	id: string
@@ -27,16 +24,30 @@ interface EdgeConfigModalProps {
 // Helper to get icon based on item type
 const getItemIcon = (name: string, source: string) => {
 	const nameLower = name.toLowerCase()
-	if (nameLower.includes('blood') || nameLower.includes('lab') || nameLower.includes('panel')) {
+	if (
+		nameLower.includes('blood') ||
+		nameLower.includes('lab') ||
+		nameLower.includes('panel')
+	) {
 		return <ActivityIcon className='w-5 h-5 text-blue-500' />
 	}
 	if (nameLower.includes('allergy') || nameLower.includes('alert')) {
 		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
 	}
-	if (nameLower.includes('medication') || nameLower.includes('rx') || nameLower.includes('prescription')) {
+	if (
+		nameLower.includes('medication') ||
+		nameLower.includes('rx') ||
+		nameLower.includes('prescription')
+	) {
 		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
 	}
-	if (nameLower.includes('x-ray') || nameLower.includes('mri') || nameLower.includes('imaging') || nameLower.includes('scan') || nameLower.includes('thorax')) {
+	if (
+		nameLower.includes('x-ray') ||
+		nameLower.includes('mri') ||
+		nameLower.includes('imaging') ||
+		nameLower.includes('scan') ||
+		nameLower.includes('thorax')
+	) {
 		return <ActivityIcon className='w-5 h-5 text-blue-500' />
 	}
 	// Default based on source
@@ -61,7 +72,7 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 	// Generate data items from mock records and uploaded documents
 	const dataItems = useMemo<DataItem[]>(() => {
 		const items: DataItem[] = []
-		
+
 		// Add mock records
 		mockRecords.forEach((record) => {
 			items.push({
@@ -71,7 +82,7 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 				type: record.type,
 			})
 		})
-		
+
 		// Add uploaded documents
 		uploadedDocs.forEach((doc) => {
 			items.push({
@@ -81,7 +92,7 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 				type: doc.extractedData.type,
 			})
 		})
-		
+
 		return items
 	}, [mockRecords, uploadedDocs])
 
@@ -91,7 +102,11 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 			const existingTypes = edge.data.sharedDataTypes || []
 			// Try to match existing types to item IDs
 			const matchedIds = dataItems
-				.filter((item) => existingTypes.includes(item.type) || existingTypes.includes(item.id))
+				.filter(
+					(item) =>
+						existingTypes.includes(item.type) ||
+						existingTypes.includes(item.id),
+				)
 				.map((item) => item.id)
 			setSelectedIds(matchedIds)
 		}
@@ -104,7 +119,9 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 
 	const handleToggle = (itemId: string) => {
 		setSelectedIds((prev) =>
-			prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId],
+			prev.includes(itemId)
+				? prev.filter((id) => id !== itemId)
+				: [...prev, itemId],
 		)
 	}
 

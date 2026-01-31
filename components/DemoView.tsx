@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { DataRequest, MedicalRecord, UploadedDocument, RequestedDataItem } from '../types'
+import {
+	DataRequest,
+	MedicalRecord,
+	UploadedDocument,
+	RequestedDataItem,
+} from '../types'
 import {
 	analyzeHealthInsight,
 	extractPDFContent,
 	testGeminiConnection,
 } from '../services/geminiService'
-import {
-	ShieldIcon,
-	UploadIcon,
-} from './Icons'
+import { ShieldIcon, UploadIcon } from './Icons'
 import { AccessNetworkFlow } from './AccessNetworkFlow'
 import { EdgeConfigModal } from './EdgeConfigModal'
 import { DocumentModal } from './DocumentModal'
@@ -159,8 +161,15 @@ export const DemoView: React.FC = () => {
 	}
 
 	// Access Request Panel handlers
-	const handleApproveSelected = (requestId: string, selectedItems: RequestedDataItem[]) => {
-		console.log('Approving selected items for request:', requestId, selectedItems)
+	const handleApproveSelected = (
+		requestId: string,
+		selectedItems: RequestedDataItem[],
+	) => {
+		console.log(
+			'Approving selected items for request:',
+			requestId,
+			selectedItems,
+		)
 		setRequests((prev) =>
 			prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r)),
 		)

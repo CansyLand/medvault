@@ -224,8 +224,22 @@ export const AlertCircleIcon = ({
 		stroke='currentColor'
 	>
 		<circle cx='12' cy='12' r='10' strokeWidth={2} />
-		<line x1='12' y1='8' x2='12' y2='12' strokeWidth={2} strokeLinecap='round' />
-		<line x1='12' y1='16' x2='12.01' y2='16' strokeWidth={2} strokeLinecap='round' />
+		<line
+			x1='12'
+			y1='8'
+			x2='12'
+			y2='12'
+			strokeWidth={2}
+			strokeLinecap='round'
+		/>
+		<line
+			x1='12'
+			y1='16'
+			x2='12.01'
+			y2='16'
+			strokeWidth={2}
+			strokeLinecap='round'
+		/>
 	</svg>
 )
 
@@ -266,14 +280,7 @@ export const ScanIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
 			strokeWidth={2}
 			d='M4 8V4h4M4 16v4h4M16 4h4v4M16 20h4v-4'
 		/>
-		<rect
-			x='9'
-			y='9'
-			width='6'
-			height='6'
-			rx='1'
-			strokeWidth={2}
-		/>
+		<rect x='9' y='9' width='6' height='6' rx='1' strokeWidth={2} />
 	</svg>
 )
 
@@ -286,8 +293,22 @@ export const InfoIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
 		stroke='currentColor'
 	>
 		<circle cx='12' cy='12' r='10' strokeWidth={2} />
-		<line x1='12' y1='16' x2='12' y2='12' strokeWidth={2} strokeLinecap='round' />
-		<line x1='12' y1='8' x2='12.01' y2='8' strokeWidth={2} strokeLinecap='round' />
+		<line
+			x1='12'
+			y1='16'
+			x2='12'
+			y2='12'
+			strokeWidth={2}
+			strokeLinecap='round'
+		/>
+		<line
+			x1='12'
+			y1='8'
+			x2='12.01'
+			y2='8'
+			strokeWidth={2}
+			strokeLinecap='round'
+		/>
 	</svg>
 )
 
@@ -304,6 +325,11 @@ export const ClockIcon = ({
 		stroke='currentColor'
 	>
 		<circle cx='12' cy='12' r='10' strokeWidth={2} />
-		<polyline points='12 6 12 12 16 14' strokeWidth={2} strokeLinecap='round' strokeLinejoin='round' />
+		<polyline
+			points='12 6 12 12 16 14'
+			strokeWidth={2}
+			strokeLinecap='round'
+			strokeLinejoin='round'
+		/>
 	</svg>
 )
