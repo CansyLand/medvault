@@ -37,7 +37,18 @@ function getVisibleTextContent(): string {
 
 		// Skip elements that don't contain meaningful text
 		const tagName = htmlElement.tagName.toLowerCase()
-		if (['script', 'style', 'noscript', 'svg', 'path', 'meta', 'link', 'title'].includes(tagName)) {
+		if (
+			[
+				'script',
+				'style',
+				'noscript',
+				'svg',
+				'path',
+				'meta',
+				'link',
+				'title',
+			].includes(tagName)
+		) {
 			continue
 		}
 
@@ -68,9 +79,11 @@ function isElementVisible(element: HTMLElement): boolean {
 	const computedStyle = window.getComputedStyle(element)
 
 	// Skip elements that are explicitly hidden
-	if (computedStyle.display === 'none' ||
+	if (
+		computedStyle.display === 'none' ||
 		computedStyle.visibility === 'hidden' ||
-		computedStyle.opacity === '0') {
+		computedStyle.opacity === '0'
+	) {
 		return false
 	}
 
@@ -81,10 +94,12 @@ function isElementVisible(element: HTMLElement): boolean {
 	}
 
 	// Skip elements that are positioned off-screen
-	if (rect.left + rect.width < 0 ||
+	if (
+		rect.left + rect.width < 0 ||
 		rect.top + rect.height < 0 ||
 		rect.left > window.innerWidth ||
-		rect.top > window.innerHeight) {
+		rect.top > window.innerHeight
+	) {
 		return false
 	}
 
@@ -95,7 +110,10 @@ function isElementVisible(element: HTMLElement): boolean {
  * Checks if text content is already captured in existing fragments
  * This prevents duplicate content from nested elements
  */
-function isTextAlreadyCaptured(existingFragments: string[], newText: string): boolean {
+function isTextAlreadyCaptured(
+	existingFragments: string[],
+	newText: string,
+): boolean {
 	// Simple check: if the new text is contained within any existing fragment
 	// and the fragment is significantly longer, consider it already captured
 	for (const fragment of existingFragments) {

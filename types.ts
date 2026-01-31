@@ -14,6 +14,7 @@ export interface DataRequest {
 	purpose: string
 	fields: string[] // Keep for backwards compatibility
 	requestedItems: RequestedDataItem[] // NEW: detailed items with toggles
+	approvedItems?: RequestedDataItem[] // Items that were actually approved
 	duration: string
 	status: 'pending' | 'approved' | 'denied' | 'expired' | 'revoked'
 	timestamp: string

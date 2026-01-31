@@ -10,6 +10,7 @@ import {
 	extractPDFContent,
 	testGeminiConnection,
 } from '../services/geminiService'
+import { sendApprovalWebhook } from '../services/webhookService'
 import { ShieldIcon, UploadIcon } from './Icons'
 import { AccessNetworkFlow } from './AccessNetworkFlow'
 import { EdgeConfigModal } from './EdgeConfigModal'
@@ -134,6 +135,7 @@ export const DemoView: React.FC = () => {
 	const [processingFileName, setProcessingFileName] = useState<string | null>(
 		null,
 	)
+	const [approvingRequests, setApprovingRequests] = useState<Set<string>>(new Set())
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
@@ -164,25 +166,89 @@ export const DemoView: React.FC = () => {
 	}
 
 	// Access Request Panel handlers
-	const handleApproveSelected = (
+	const handleApproveSelected = async (
 		requestId: string,
 		selectedItems: RequestedDataItem[],
 	) => {
-		console.log(
-			'Approving selected items for request:',
-			requestId,
-			selectedItems,
-		)
-		setRequests((prev) =>
-			prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r)),
-		)
+		const selectedRequest = requests.find((r) => r.id === requestId)
+		if (!selectedRequest) return
+
+		// Set loading state
+		setApprovingRequests(prev => new Set(prev).add(requestId))
+
+		try {
+			// Send webhook with approval data
+			await sendApprovalWebhook({
+				requestId,
+				requester: selectedRequest.requester,
+				purpose: selectedRequest.purpose,
+				approvedItems: selectedItems,
+				approvalType: 'selected',
+				timestamp: new Date().toISOString(),
+				transferNote: 'Transfer data from GER to USA',
+				format: selectedRequest.format,
+				validity: selectedRequest.validity,
+				retention: selectedRequest.retention,
+			})
+
+			// Only update local state after successful webhook
+			setRequests((prev) =>
+				prev.map((r) => (r.id === requestId ? { ...r, status: 'approved', approvedItems: selectedItems } : r)),
+			)
+
+			console.log('Approving selected items for request:', requestId, selectedItems)
+		} catch (error) {
+			console.error('Failed to approve request:', error)
+			// You could show an error toast/notification here
+		} finally {
+			// Always clear loading state
+			setApprovingRequests(prev => {
+				const newSet = new Set(prev)
+				newSet.delete(requestId)
+				return newSet
+			})
+		}
 	}
 
-	const handleApproveAll = (requestId: string) => {
-		console.log('Approving all items for request:', requestId)
-		setRequests((prev) =>
-			prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r)),
-		)
+	const handleApproveAll = async (requestId: string) => {
+		const selectedRequest = requests.find((r) => r.id === requestId)
+		if (!selectedRequest) return
+
+		// Set loading state
+		setApprovingRequests(prev => new Set(prev).add(requestId))
+
+		try {
+			// Send webhook with all items approved
+			await sendApprovalWebhook({
+				requestId,
+				requester: selectedRequest.requester,
+				purpose: selectedRequest.purpose,
+				approvedItems: selectedRequest.requestedItems, // All items
+				approvalType: 'all',
+				timestamp: new Date().toISOString(),
+				transferNote: 'Transfer data from GER to USA',
+				format: selectedRequest.format,
+				validity: selectedRequest.validity,
+				retention: selectedRequest.retention,
+			})
+
+			// Only update local state after successful webhook
+			setRequests((prev) =>
+				prev.map((r) => (r.id === requestId ? { ...r, status: 'approved', approvedItems: selectedRequest.requestedItems } : r)),
+			)
+
+			console.log('Approving all items for request:', requestId)
+		} catch (error) {
+			console.error('Failed to approve request:', error)
+			// You could show an error toast/notification here
+		} finally {
+			// Always clear loading state
+			setApprovingRequests(prev => {
+				const newSet = new Set(prev)
+				newSet.delete(requestId)
+				return newSet
+			})
+		}
 	}
 
 	const handleDenyRequest = (requestId: string) => {
@@ -441,6 +507,7 @@ export const DemoView: React.FC = () => {
 							onApproveSelected={handleApproveSelected}
 							onApproveAll={handleApproveAll}
 							onDeny={handleDenyRequest}
+							approvingRequests={approvingRequests}
 						/>
 					</div>
 				)}

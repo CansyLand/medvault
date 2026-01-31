@@ -191,7 +191,9 @@ Example response: [0, 2, 4] or []`
 		// Phase 2: Answer the question with relevant document content and/or page content
 		const contextPrompt = `You are a helpful AI assistant answering questions about the user's medical information.
 
-${contextDocs.length > 0 ? `Relevant document content:
+${
+	contextDocs.length > 0
+		? `Relevant document content:
 ${contextDocs
 	.map(
 		(
@@ -200,10 +202,16 @@ ${contextDocs
 		) => `Document ${i + 1}: ${doc.extractedData.title} (${doc.extractedData.type})
 Full content: ${doc.extractedData.content}`,
 	)
-	.join('\n\n')}` : ''}
+	.join('\n\n')}`
+		: ''
+}
 
-${hasPageContent ? `${contextDocs.length > 0 ? '\n\n' : ''}Current page content from "${pageContent.title}" (${pageContent.url}):
-${pageContent.text}` : ''}
+${
+	hasPageContent
+		? `${contextDocs.length > 0 ? '\n\n' : ''}Current page content from "${pageContent.title}" (${pageContent.url}):
+${pageContent.text}`
+		: ''
+}
 
 ${chatHistory.length > 0 ? `\n\nPrevious conversation:\n${chatHistory.map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n')}\n\n` : ''}
 
