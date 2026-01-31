@@ -1,0 +1,8 @@
+
+{
+  "name": "MedVault - Personal Health Data Vault",
+  "description": "A sovereign health data platform where users own their medical records and grant temporary, auditable access to healthcare providers and insurers using decentralized technology.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

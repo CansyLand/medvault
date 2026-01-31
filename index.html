@@ -1,0 +1,88 @@
+
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedVault | Your Health Data. Your Control.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              merriweather: ['Merriweather', 'serif'],
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              background: '#f9fafb',
+              mint: {
+                DEFAULT: '#a3ffba',
+                pale: '#e0f5e9',
+                secondary: '#7beaa2',
+                900: '#008024',
+              },
+              teal: {
+                deep: '#0f766e',
+              },
+              lavender: {
+                DEFAULT: '#c4a8e4',
+                dark: '#7e22ce', // Darker than lavender for the graphic
+              },
+              night: '#050505',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+        h1, h2, h3, .font-serif {
+            font-family: 'Merriweather', serif;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #0f766e 0%, #008024 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        /* Style for the technical diagram recreation adjusted for the purple/lavender theme */
+        .diagram-path {
+            stroke: rgba(126, 34, 206, 0.15); /* Using purple-dark */
+            stroke-width: 1.5;
+            fill: none;
+        }
+        .diagram-node {
+            fill: #7e22ce;
+            stroke: rgba(126, 34, 206, 0.2);
+            stroke-width: 1;
+        }
+        .diagram-node-outline {
+            fill: none;
+            stroke: #7e22ce;
+            stroke-width: 1.5;
+            opacity: 0.3;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.39.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-background text-slate-900 antialiased overflow-x-hidden">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
