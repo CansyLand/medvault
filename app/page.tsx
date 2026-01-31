@@ -157,6 +157,8 @@ export default function HomePage() {
               onRenameRecord={vault.renameRecord}
               disabled={vault.isBusy || !vault.connected}
               entityRole={vault.entityRole}
+              shares={vault.shares}
+              sharedData={vault.sharedData}
             />
           )}
 

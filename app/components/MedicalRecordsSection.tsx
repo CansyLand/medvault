@@ -4,6 +4,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { DocumentIcon, ShieldIcon } from "./Icons";
 import { DocumentUpload } from "./DocumentUpload";
 import { DocumentModal } from "./DocumentModal";
+import { PatientListPanel } from "./PatientListPanel";
+import { PatientRecordsView } from "./PatientRecordsView";
 import {
   type MedicalRecord,
   type ProviderProfile,
@@ -14,7 +16,9 @@ import {
   PropertyKeyPrefixes,
   isProviderProfile,
 } from "../types/medical";
-import type { EntityRole } from "../lib/api";
+import type { EntityRole, SharesResponse, PublicProfile } from "../lib/api";
+import { getPublicProfile } from "../lib/api";
+import type { SharedPropertyValue } from "../hooks/useEventStream";
 
 interface MedicalRecordsSectionProps {
   properties: Record<string, string>;
@@ -23,6 +27,9 @@ interface MedicalRecordsSectionProps {
   onRenameRecord?: (key: string, oldName: string, newName: string) => void;
   disabled: boolean;
   entityRole?: EntityRole | null;
+  // For doctor's patient view
+  shares?: SharesResponse;
+  sharedData?: SharedPropertyValue[];
 }
 
 export function MedicalRecordsSection({
@@ -32,6 +39,8 @@ export function MedicalRecordsSection({
   onRenameRecord,
   disabled,
   entityRole,
+  shares,
+  sharedData,
 }: MedicalRecordsSectionProps) {
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
@@ -39,8 +48,47 @@ export function MedicalRecordsSection({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  
+  // Doctor-specific state
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientProfile, setSelectedPatientProfile] = useState<PublicProfile | null>(null);
 
   const isDoctor = entityRole === "doctor";
+  
+  // Fetch selected patient's profile
+  useEffect(() => {
+    if (!selectedPatientId) {
+      setSelectedPatientProfile(null);
+      return;
+    }
+    
+    getPublicProfile(selectedPatientId)
+      .then((profile) => {
+        setSelectedPatientProfile(profile);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch patient profile:", err);
+        setSelectedPatientProfile(null);
+      });
+  }, [selectedPatientId]);
+
+  // Get shared records for selected patient
+  const selectedPatientRecords = useMemo(() => {
+    if (!selectedPatientId || !sharedData) return [];
+    
+    return sharedData
+      .filter((item) => item.sourceEntityId === selectedPatientId)
+      .map((item) => ({
+        propertyName: item.propertyName,
+        value: item.value,
+      }));
+  }, [selectedPatientId, sharedData]);
+  
+  const handleAddPatient = (entityId: string) => {
+    // For now, just select the patient - in a full implementation,
+    // you might want to validate the entity exists first
+    setSelectedPatientId(entityId);
+  };
 
   // Focus input when editing starts
   useEffect(() => {
@@ -171,135 +219,85 @@ export function MedicalRecordsSection({
     }
   };
 
+  // Doctor's patient-centric view
+  if (isDoctor && shares) {
+    return (
+      <div className="section doctor-records-section">
+        <div className="section-header">
+          <h2 className="font-merriweather">Patient Records</h2>
+        </div>
+        <p className="section-desc">
+          Select a patient to view their medical records or upload new documents.
+        </p>
+
+        {/* Practice Information (collapsed) */}
+        {practiceProfile && (
+          <div className="practice-info-compact" style={{ marginBottom: "1.5rem" }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.75rem 1rem",
+              background: "var(--bg-tertiary)",
+              borderRadius: "12px",
+              border: "1px solid var(--border)",
+            }}>
+              <div style={{
+                width: "28px",
+                height: "28px",
+                background: "rgba(124, 58, 237, 0.1)",
+                borderRadius: "6px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <ShieldIcon className="w-3 h-3" style={{ color: "var(--lavender-dark)" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                  {practiceProfile.title} {practiceProfile.firstName} {practiceProfile.lastName}
+                </span>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+                  {practiceProfile.organizationName}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Two-column patient layout */}
+        <div className="doctor-patient-layout">
+          <PatientListPanel
+            shares={shares}
+            selectedPatientId={selectedPatientId}
+            onSelectPatient={setSelectedPatientId}
+            onAddPatient={handleAddPatient}
+          />
+          <PatientRecordsView
+            patientId={selectedPatientId}
+            patientName={selectedPatientProfile?.displayName || (selectedPatientId ? `Patient ${selectedPatientId.slice(0, 8)}...` : "")}
+            sharedRecords={selectedPatientRecords}
+            pendingRecords={properties}
+            onUpload={handleUpload}
+            onDeleteRecord={handleDelete}
+            disabled={disabled}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Patient's default view
   return (
     <div className="section">
       <div className="section-header">
-        <h2 className="font-merriweather">{isDoctor ? "Patient Records" : "Medical Records"}</h2>
+        <h2 className="font-merriweather">Medical Records</h2>
         <span className="badge">{records.length}</span>
       </div>
       <p className="section-desc">
-        {isDoctor 
-          ? "Upload patient medical documents. Records can be transferred to patients, making them the permanent owners."
-          : "Upload and manage encrypted medical documents. AI extracts key information automatically."}
+        Upload and manage encrypted medical documents. AI extracts key information automatically.
       </p>
-
-      {/* Practice Information Section (for healthcare providers) */}
-      {isDoctor && practiceProfile && (
-        <div className="practice-info-section" style={{ marginBottom: "2rem" }}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginBottom: "1rem",
-          }}>
-            <div style={{
-              width: "32px",
-              height: "32px",
-              background: "rgba(124, 58, 237, 0.1)",
-              borderRadius: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}>
-              <ShieldIcon className="w-4 h-4" style={{ color: "var(--lavender-dark)" }} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Practice Information</h3>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>
-                Your organization&apos;s master data (not transferable)
-              </p>
-            </div>
-          </div>
-          
-          <div style={{
-            background: "var(--bg-tertiary)",
-            border: "1px solid var(--border)",
-            borderRadius: "16px",
-            padding: "1.25rem",
-          }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div>
-                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                  Provider Name
-                </span>
-                <p style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0.25rem 0 0", color: "var(--text-primary)" }}>
-                  {practiceProfile.title} {practiceProfile.firstName} {practiceProfile.lastName}
-                </p>
-              </div>
-              <div>
-                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                  Organization
-                </span>
-                <p style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0.25rem 0 0", color: "var(--text-primary)" }}>
-                  {practiceProfile.organizationName || "—"}
-                </p>
-              </div>
-              <div>
-                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                  Specialty
-                </span>
-                <p style={{ fontSize: "0.95rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
-                  {practiceProfile.specialty || "—"}
-                </p>
-              </div>
-              <div>
-                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                  Type
-                </span>
-                <p style={{ fontSize: "0.95rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
-                  {practiceProfile.organizationType?.replace(/_/g, " ") || "—"}
-                </p>
-              </div>
-              {practiceProfile.licenseNumber && (
-                <div>
-                  <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                    License #
-                  </span>
-                  <p style={{ fontSize: "0.9rem", fontFamily: "'JetBrains Mono', monospace", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
-                    {practiceProfile.licenseNumber}
-                  </p>
-                </div>
-              )}
-              {practiceProfile.npiNumber && (
-                <div>
-                  <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                    NPI #
-                  </span>
-                  <p style={{ fontSize: "0.9rem", fontFamily: "'JetBrains Mono', monospace", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
-                    {practiceProfile.npiNumber}
-                  </p>
-                </div>
-              )}
-            </div>
-            {(practiceProfile.email || practiceProfile.phone) && (
-              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-                  {practiceProfile.email && (
-                    <div>
-                      <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                        Email
-                      </span>
-                      <p style={{ fontSize: "0.9rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
-                        {practiceProfile.email}
-                      </p>
-                    </div>
-                  )}
-                  {practiceProfile.phone && (
-                    <div>
-                      <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
-                        Phone
-                      </span>
-                      <p style={{ fontSize: "0.9rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
-                        {practiceProfile.phone}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Document Upload */}
       <DocumentUpload onUpload={handleUpload} disabled={disabled} />

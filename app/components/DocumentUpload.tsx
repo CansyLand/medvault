@@ -14,9 +14,10 @@ import {
 interface DocumentUploadProps {
   onUpload: (recordKey: string, recordValue: string, pdfKey?: string, pdfValue?: string) => void;
   disabled: boolean;
+  compact?: boolean;
 }
 
-export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
+export function DocumentUpload({ onUpload, disabled, compact = false }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,9 +119,9 @@ export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
   return (
     <div
       style={{
-        padding: "2rem",
+        padding: compact ? "1rem" : "2rem",
         border: `2px dashed ${dragOver ? "var(--teal-deep)" : "var(--border)"}`,
-        borderRadius: "16px",
+        borderRadius: compact ? "12px" : "16px",
         background: dragOver ? "var(--mint-pale)" : "var(--bg-tertiary)",
         textAlign: "center",
         cursor: disabled || uploading ? "not-allowed" : "pointer",
@@ -142,37 +143,51 @@ export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
       />
 
       {uploading ? (
-        <>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: compact ? "0.75rem" : "1rem", flexDirection: compact ? "row" : "column" }}>
           <div
             style={{
-              width: "48px",
-              height: "48px",
-              margin: "0 auto 1rem",
+              width: compact ? "24px" : "48px",
+              height: compact ? "24px" : "48px",
               border: "3px solid var(--border)",
               borderTopColor: "var(--teal-deep)",
               borderRadius: "50%",
               animation: "spin 1s linear infinite",
+              flexShrink: 0,
             }}
           />
-          <p style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-            Processing document with AI...
-          </p>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
-            Extracting and encrypting medical data
-          </p>
-        </>
+          <div>
+            <p style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: compact ? "0.9rem" : "1rem" }}>
+              {compact ? "Processing..." : "Processing document with AI..."}
+            </p>
+            {!compact && (
+              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+                Extracting and encrypting medical data
+              </p>
+            )}
+          </div>
+        </div>
       ) : (
-        <>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: compact ? "0.75rem" : "1rem", flexDirection: compact ? "row" : "column" }}>
           <UploadIcon
-            style={{ width: "48px", height: "48px", margin: "0 auto 1rem", color: "var(--teal-deep)", opacity: 0.6 }}
+            style={{ 
+              width: compact ? "24px" : "48px", 
+              height: compact ? "24px" : "48px", 
+              color: "var(--teal-deep)", 
+              opacity: 0.6,
+              flexShrink: 0,
+            }}
           />
-          <p style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-            Drop a PDF here or click to upload
-          </p>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
-            Documents are analyzed by AI and encrypted before storage
-          </p>
-        </>
+          <div>
+            <p style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: compact ? "0.9rem" : "1rem" }}>
+              {compact ? "Drop PDF or click to upload" : "Drop a PDF here or click to upload"}
+            </p>
+            {!compact && (
+              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+                Documents are analyzed by AI and encrypted before storage
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
       <style>{`

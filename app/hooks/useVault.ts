@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   browserSupportsWebAuthn,
@@ -102,6 +102,25 @@ export function useVault() {
   const [shares, setShares] = useState<SharesResponse>({ outgoing: [], incoming: [] });
   const [pendingShareCodes, setPendingShareCodes] = useState<Map<string, string>>(new Map()); // sourceEntityId -> code
 
+  // Derive patient list from incoming shares (for doctors)
+  const patientList = useMemo(() => {
+    const patientMap = new Map<string, { entityId: string; recordCount: number }>();
+    
+    shares.incoming.forEach((share) => {
+      const existing = patientMap.get(share.sourceEntityId);
+      if (existing) {
+        existing.recordCount += 1;
+      } else {
+        patientMap.set(share.sourceEntityId, {
+          entityId: share.sourceEntityId,
+          recordCount: 1,
+        });
+      }
+    });
+    
+    return Array.from(patientMap.values());
+  }, [shares.incoming]);
+
   // Profile-related state
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean | null>(null); // null = loading
@@ -112,6 +131,13 @@ export function useVault() {
     signedIn ? entityId : null,
     signedIn ? entityPrivateKey : null
   );
+
+  // Helper to get records for a specific patient (must be after eventStream)
+  const getPatientRecords = useCallback((patientEntityId: string) => {
+    return eventStream.sharedData.filter(
+      (item) => item.sourceEntityId === patientEntityId
+    );
+  }, [eventStream.sharedData]);
 
   // Send initial EntityCreated event for new entities
   useEffect(() => {
@@ -682,6 +708,9 @@ export function useVault() {
     // Transfer-related (doctor only)
     isTransferring: transferMutation.isPending,
     transferRecords,
+    // Patient management (doctor only)
+    patientList,
+    getPatientRecords,
     // Profile-related
     userProfile,
     isOnboardingComplete,
