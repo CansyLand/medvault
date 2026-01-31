@@ -91,18 +91,41 @@ export interface Prescription extends MedicalRecord {
   };
 }
 
+// Requested data item with toggle state
+export interface RequestedDataItem {
+  id: string;
+  name: string; // "Recent Blood Work", "X-Ray (Thorax)"
+  source: "Documents" | "Profile";
+  accessType: "Read Access" | "Write Access";
+  enabled: boolean; // Toggle state
+  documentId?: string; // Reference to document
+  recordId?: string; // Reference to record
+}
+
 // Access request from healthcare provider
 export interface DataAccessRequest {
   id: string;
   requester: string;
   requesterType: "doctor" | "hospital" | "insurance" | "researcher" | "other";
   purpose: string;
-  requestedRecords: string[]; // Property keys
+  requestedRecords: string[]; // Property keys (backwards compat)
+  requestedItems?: RequestedDataItem[]; // Detailed items with toggles
   duration: string;
   status: "pending" | "approved" | "denied" | "expired" | "revoked";
   createdAt: string;
   expiresAt: string | null;
   respondedAt: string | null;
+  format?: string; // "FHIR JSON"
+  validity?: string; // "30 Days"
+  retention?: string; // "Clinical Duration"
+}
+
+// Chat message for AI assistant
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
 }
 
 // Access grant (when you share data)

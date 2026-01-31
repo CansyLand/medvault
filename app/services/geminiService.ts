@@ -215,3 +215,103 @@ Be brief and focus on what type of information is being shared.`,
     return `${records.length} medical record(s) ready to share.`;
   }
 }
+
+/**
+ * Chat with documents using a two-phase approach:
+ * 1. Determine which documents are relevant to the question
+ * 2. Answer the question using relevant document content
+ */
+export async function chatWithDocuments(
+  userMessage: string,
+  records: Array<{ key: string; value: string }>,
+  chatHistory: Array<{ role: string; content: string }>
+): Promise<string> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return "I need the Gemini API to be configured to answer questions about your documents.";
+  }
+
+  try {
+    if (records.length === 0) {
+      return "I don't see any documents uploaded yet. Please upload some medical documents first so I can help answer questions about them.";
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Phase 1: Determine which documents are relevant
+    const documentSummaries = records.map((doc, index) => ({
+      index,
+      key: doc.key,
+      preview: doc.value.slice(0, 200),
+    }));
+
+    const relevancePrompt = `Given the user's question: "${userMessage}"
+
+Here are the available medical records:
+${documentSummaries
+  .map((doc) => `Document ${doc.index + 1}: ${doc.key}\nPreview: ${doc.preview}...`)
+  .join("\n\n")}
+
+Please analyze which documents are most relevant to answer this question. Return only a JSON array of document indices (0-based) that should be included for context. If no documents are relevant, return an empty array.
+
+Example response: [0, 2, 4] or []`;
+
+    const relevanceResponse = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: relevancePrompt,
+      config: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      },
+    });
+
+    let relevantIndices: number[] = [];
+    try {
+      relevantIndices = JSON.parse(relevanceResponse.text || "[]");
+      // Filter to ensure valid indices
+      relevantIndices = relevantIndices.filter(
+        (i) => Number.isInteger(i) && i >= 0 && i < records.length
+      );
+    } catch (parseError) {
+      console.warn("Failed to parse relevance response, using all documents:", parseError);
+      relevantIndices = records.map((_, i) => i);
+    }
+
+    // Phase 2: Answer the question with relevant document content
+    const contextDocs = relevantIndices.map((index) => records[index]);
+
+    const contextPrompt =
+      contextDocs.length > 0
+        ? `You are a helpful AI assistant answering questions about the user's medical documents stored in their encrypted vault.
+
+Relevant document content:
+${contextDocs
+  .map((doc, i) => `Document ${i + 1}: ${doc.key}\nContent: ${doc.value}`)
+  .join("\n\n")}
+
+${chatHistory.length > 0 ? `Previous conversation:\n${chatHistory.map((msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`).join("\n")}\n\n` : ""}
+
+User's question: ${userMessage}
+
+Please provide a helpful, accurate answer based on the document content. Be concise but thorough. If the question cannot be answered from the available documents, say so clearly.`
+        : `You are a helpful AI assistant answering questions about the user's medical documents stored in their encrypted vault.
+
+No documents were found to be relevant to the question: "${userMessage}"
+
+Please respond appropriately, explaining that you don't have relevant information from the uploaded documents.`;
+
+    const answerResponse = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: contextPrompt,
+      config: {
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      },
+    });
+
+    return answerResponse.text?.trim() || "I couldn't generate a response. Please try again.";
+  } catch (error) {
+    console.error("Chat with documents error:", error);
+    return "I apologize, but I encountered an error while processing your question. Please try again.";
+  }
+}
