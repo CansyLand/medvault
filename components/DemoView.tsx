@@ -4,6 +4,7 @@ import {
 	explainMedicalRequest,
 	analyzeHealthInsight,
 	extractPDFContent,
+	testGeminiConnection,
 } from '../services/geminiService'
 import {
 	ShieldIcon,
@@ -211,13 +212,21 @@ export const DemoView: React.FC = () => {
 							</div>
 						))}
 					</div>
-					<button
-						onClick={handleAddRecord}
-						disabled={uploading}
-						className='w-full mt-4 py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-xl text-sm font-bold hover:border-teal-deep hover:text-teal-deep transition-all font-sans disabled:opacity-50 disabled:cursor-not-allowed'
-					>
-						{uploading ? 'Processing...' : '+ Add New Record'}
-					</button>
+					<div className='flex gap-2 mt-4'>
+						<button
+							onClick={handleAddRecord}
+							disabled={uploading}
+							className='flex-1 py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-xl text-sm font-bold hover:border-teal-deep hover:text-teal-deep transition-all font-sans disabled:opacity-50 disabled:cursor-not-allowed'
+						>
+							{uploading ? 'Processing...' : '+ Add New Record'}
+						</button>
+						<button
+							onClick={() => testGeminiConnection()}
+							className='px-4 py-2 bg-mint text-teal-deep rounded-xl text-sm font-bold hover:bg-teal-deep hover:text-white transition-all font-sans'
+						>
+							Test API
+						</button>
+					</div>
 					<input
 						ref={fileInputRef}
 						type='file'

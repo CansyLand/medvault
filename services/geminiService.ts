@@ -26,6 +26,24 @@ export const explainMedicalRequest = async (request: {
 	}
 }
 
+export const testGeminiConnection = async () => {
+	try {
+		const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+		const response = await ai.models.generateContent({
+			model: "gemini-3-flash-preview",
+			contents: "Hello! This is a test message. Please respond with 'Gemini API connection successful!'",
+			config: {
+				temperature: 0.1,
+			}
+		});
+		console.log("✅ Gemini API Test Response:", response.text);
+		return response.text;
+	} catch (error) {
+		console.error("❌ Gemini API Test Failed:", error);
+		return "Connection failed";
+	}
+};
+
 export const analyzeHealthInsight = async (records: any[]) => {
 	try {
 		const ai = new GoogleGenAI({ apiKey: process.env.API_KEY })
@@ -47,9 +65,9 @@ export const extractPDFContent = async (
 	pdfBase64: string,
 ): Promise<UploadedDocument['extractedData']> => {
 	try {
-		const ai = new GoogleGenAI({ apiKey: process.env.API_KEY })
+		const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 		const response = await ai.models.generateContent({
-			model: 'gemini-1.5-flash',
+			model: 'gemini-3-flash-preview',
 			contents: [
 				{
 					parts: [

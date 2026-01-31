@@ -103,11 +103,14 @@ export const DocumentModal: React.FC<DocumentModalProps> = ({
 				<div className='p-6 overflow-auto max-h-[60vh]'>
 					{activeTab === 'document' && (
 						<div className='w-full h-[500px]'>
-							<iframe
-								src={`data:application/pdf;base64,${pdfBase64}`}
+							<object
+								data={`data:application/pdf;base64,${pdfBase64}`}
+								type="application/pdf"
 								className='w-full h-full border rounded-lg'
 								title={fileName}
-							/>
+							>
+								<p>Unable to display PDF. <a href={`data:application/pdf;base64,${pdfBase64}`} download={fileName}>Download PDF</a></p>
+							</object>
 						</div>
 					)}
 
