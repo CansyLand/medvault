@@ -156,6 +156,7 @@ export default function HomePage() {
               onDeleteProperty={vault.deleteProperty}
               onRenameRecord={vault.renameRecord}
               disabled={vault.isBusy || !vault.connected}
+              entityRole={vault.entityRole}
             />
           )}
 

@@ -59,11 +59,16 @@ export function EnhancedSharingSection({
   const isDoctor = entityRole === "doctor";
   const isPatient = entityRole === "patient";
 
-  // Parse medical records from properties
+  // Parse medical records from properties (excludes profile data - that's master data, not shareable/transferable)
   const records = useMemo(() => {
     const result: Array<{ key: string; title: string; type: string }> = [];
 
     Object.entries(properties).forEach(([key, value]) => {
+      // Skip profile data - this is practice/patient master data, not transferable
+      if (key.startsWith(PropertyKeyPrefixes.PROFILE)) {
+        return;
+      }
+      
       if (key.startsWith(PropertyKeyPrefixes.RECORD)) {
         const record = parseRecordFromProperty(value);
         if (record) {
@@ -74,7 +79,7 @@ export function EnhancedSharingSection({
           });
         }
       } else if (!key.startsWith(PropertyKeyPrefixes.PDF)) {
-        // Include simple properties too
+        // Include simple properties too (but not profile or PDF data)
         result.push({
           key,
           title: key,

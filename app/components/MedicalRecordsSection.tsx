@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { DocumentIcon } from "./Icons";
+import { DocumentIcon, ShieldIcon } from "./Icons";
 import { DocumentUpload } from "./DocumentUpload";
 import { DocumentModal } from "./DocumentModal";
 import {
   type MedicalRecord,
+  type ProviderProfile,
   parseRecordFromProperty,
   serializeRecordForProperty,
   getRecordTypeDisplayName,
   getRecordTypeIconClass,
   PropertyKeyPrefixes,
+  isProviderProfile,
 } from "../types/medical";
+import type { EntityRole } from "../lib/api";
 
 interface MedicalRecordsSectionProps {
   properties: Record<string, string>;
@@ -19,6 +22,7 @@ interface MedicalRecordsSectionProps {
   onDeleteProperty: (key: string) => void;
   onRenameRecord?: (key: string, oldName: string, newName: string) => void;
   disabled: boolean;
+  entityRole?: EntityRole | null;
 }
 
 export function MedicalRecordsSection({
@@ -27,6 +31,7 @@ export function MedicalRecordsSection({
   onDeleteProperty,
   onRenameRecord,
   disabled,
+  entityRole,
 }: MedicalRecordsSectionProps) {
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
@@ -35,6 +40,8 @@ export function MedicalRecordsSection({
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
 
+  const isDoctor = entityRole === "doctor";
+
   // Focus input when editing starts
   useEffect(() => {
     if (editingKey && editInputRef.current) {
@@ -42,6 +49,23 @@ export function MedicalRecordsSection({
       editInputRef.current.select();
     }
   }, [editingKey]);
+
+  // Parse practice profile data (for healthcare providers)
+  const practiceProfile = useMemo(() => {
+    const profileKey = `${PropertyKeyPrefixes.PROFILE}data`;
+    const profileData = properties[profileKey];
+    if (!profileData) return null;
+    
+    try {
+      const parsed = JSON.parse(profileData);
+      if (isProviderProfile(parsed)) {
+        return parsed as ProviderProfile;
+      }
+    } catch {
+      // Not a valid profile
+    }
+    return null;
+  }, [properties]);
 
   // Parse medical records from properties
   const records = useMemo(() => {
@@ -70,10 +94,13 @@ export function MedicalRecordsSection({
     });
   }, [properties]);
 
-  // Count non-record properties (simple key-value pairs)
+  // Count non-record properties (simple key-value pairs), excluding profile data
   const simpleProperties = useMemo(() => {
     return Object.entries(properties).filter(
-      ([key]) => !key.startsWith(PropertyKeyPrefixes.RECORD) && !key.startsWith(PropertyKeyPrefixes.PDF)
+      ([key]) => 
+        !key.startsWith(PropertyKeyPrefixes.RECORD) && 
+        !key.startsWith(PropertyKeyPrefixes.PDF) &&
+        !key.startsWith(PropertyKeyPrefixes.PROFILE)
     );
   }, [properties]);
 
@@ -147,12 +174,132 @@ export function MedicalRecordsSection({
   return (
     <div className="section">
       <div className="section-header">
-        <h2 className="font-merriweather">Medical Records</h2>
+        <h2 className="font-merriweather">{isDoctor ? "Patient Records" : "Medical Records"}</h2>
         <span className="badge">{records.length}</span>
       </div>
       <p className="section-desc">
-        Upload and manage encrypted medical documents. AI extracts key information automatically.
+        {isDoctor 
+          ? "Upload patient medical documents. Records can be transferred to patients, making them the permanent owners."
+          : "Upload and manage encrypted medical documents. AI extracts key information automatically."}
       </p>
+
+      {/* Practice Information Section (for healthcare providers) */}
+      {isDoctor && practiceProfile && (
+        <div className="practice-info-section" style={{ marginBottom: "2rem" }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            marginBottom: "1rem",
+          }}>
+            <div style={{
+              width: "32px",
+              height: "32px",
+              background: "rgba(124, 58, 237, 0.1)",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <ShieldIcon className="w-4 h-4" style={{ color: "var(--lavender-dark)" }} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Practice Information</h3>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>
+                Your organization&apos;s master data (not transferable)
+              </p>
+            </div>
+          </div>
+          
+          <div style={{
+            background: "var(--bg-tertiary)",
+            border: "1px solid var(--border)",
+            borderRadius: "16px",
+            padding: "1.25rem",
+          }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                  Provider Name
+                </span>
+                <p style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0.25rem 0 0", color: "var(--text-primary)" }}>
+                  {practiceProfile.title} {practiceProfile.firstName} {practiceProfile.lastName}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                  Organization
+                </span>
+                <p style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0.25rem 0 0", color: "var(--text-primary)" }}>
+                  {practiceProfile.organizationName || "—"}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                  Specialty
+                </span>
+                <p style={{ fontSize: "0.95rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
+                  {practiceProfile.specialty || "—"}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                  Type
+                </span>
+                <p style={{ fontSize: "0.95rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
+                  {practiceProfile.organizationType?.replace(/_/g, " ") || "—"}
+                </p>
+              </div>
+              {practiceProfile.licenseNumber && (
+                <div>
+                  <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                    License #
+                  </span>
+                  <p style={{ fontSize: "0.9rem", fontFamily: "'JetBrains Mono', monospace", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
+                    {practiceProfile.licenseNumber}
+                  </p>
+                </div>
+              )}
+              {practiceProfile.npiNumber && (
+                <div>
+                  <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                    NPI #
+                  </span>
+                  <p style={{ fontSize: "0.9rem", fontFamily: "'JetBrains Mono', monospace", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
+                    {practiceProfile.npiNumber}
+                  </p>
+                </div>
+              )}
+            </div>
+            {(practiceProfile.email || practiceProfile.phone) && (
+              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+                  {practiceProfile.email && (
+                    <div>
+                      <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                        Email
+                      </span>
+                      <p style={{ fontSize: "0.9rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
+                        {practiceProfile.email}
+                      </p>
+                    </div>
+                  )}
+                  {practiceProfile.phone && (
+                    <div>
+                      <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+                        Phone
+                      </span>
+                      <p style={{ fontSize: "0.9rem", margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>
+                        {practiceProfile.phone}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Document Upload */}
       <DocumentUpload onUpload={handleUpload} disabled={disabled} />
