@@ -105,7 +105,7 @@ export function MedicalRecordsSection({
       <div style={{ marginTop: "1.5rem" }}>
         {records.length === 0 ? (
           <div className="empty-state">
-            <DocumentIcon className="w-12 h-12" style={{ opacity: 0.2, margin: "0 auto 1rem" }} />
+            <DocumentIcon style={{ width: '32px', height: '32px', opacity: 0.3, margin: "0 auto 1rem" }} />
             <p>No medical records yet</p>
             <span className="empty-hint">Upload a PDF to get started</span>
           </div>
@@ -118,7 +118,10 @@ export function MedicalRecordsSection({
                 onClick={() => handleRecordClick(record, pdfKey)}
                 style={{ cursor: "pointer" }}
               >
-                <div className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}>
+                <div 
+                  className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}
+                  style={{ width: '24px', height: '24px', fontSize: '0.6rem', borderRadius: '6px' }}
+                >
                   {getRecordTypeDisplayName(record.type).slice(0, 2).toUpperCase()}
                 </div>
                 <div className="property-content">
@@ -156,8 +159,11 @@ export function MedicalRecordsSection({
           <ul className="property-list">
             {simpleProperties.map(([key, value]) => (
               <li key={key} className="property-item">
-                <div className="record-type-icon default">
-                  <DocumentIcon className="w-4 h-4" />
+                <div 
+                  className="record-type-icon default"
+                  style={{ width: '24px', height: '24px' }}
+                >
+                  <DocumentIcon style={{ width: '12px', height: '12px' }} />
                 </div>
                 <div className="property-content">
                   <span className="property-key">{key}</span>

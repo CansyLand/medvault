@@ -50,7 +50,10 @@ export function DocumentModal({ record, pdfBase64, isOpen, onClose }: DocumentMo
           justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}>
+            <div 
+              className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}
+              style={{ width: '40px', height: '40px', fontSize: '0.85rem' }}
+            >
               {getRecordTypeDisplayName(record.type).slice(0, 2).toUpperCase()}
             </div>
             <div>

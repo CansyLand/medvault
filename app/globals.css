@@ -614,10 +614,10 @@ button.danger:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   transition: all 0.15s ease;
 }
 
@@ -842,15 +842,18 @@ button.danger:hover:not(:disabled) {
 /* ==================== */
 
 .record-type-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   justify-content: center;
-  font-weight: 700;
-  font-size: 0.75rem;
+  font-weight: 600;
+  font-size: 0.6rem;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .record-type-icon.lab {

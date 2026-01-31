@@ -164,8 +164,7 @@ export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
       ) : (
         <>
           <UploadIcon
-            className="w-12 h-12"
-            style={{ margin: "0 auto 1rem", color: "var(--teal-deep)", opacity: 0.6 }}
+            style={{ width: "48px", height: "48px", margin: "0 auto 1rem", color: "var(--teal-deep)", opacity: 0.6 }}
           />
           <p style={{ fontWeight: 600, color: "var(--text-primary)" }}>
             Drop a PDF here or click to upload

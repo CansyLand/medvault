@@ -12,6 +12,8 @@ import { EnhancedSharingSection } from "./components/EnhancedSharingSection";
 import { DevicesSection } from "./components/DevicesSection";
 import { SettingsSection } from "./components/SettingsSection";
 import { AccessNetworkFlow } from "./components/AccessNetworkFlow";
+import { ChatAssistant } from "./components/ChatAssistant";
+import { PropertyKeyPrefixes } from "./types/medical";
 
 export default function HomePage() {
   const vault = useVault();
@@ -159,6 +161,13 @@ export default function HomePage() {
           )}
         </main>
       </div>
+
+      {/* Floating Chat Assistant */}
+      <ChatAssistant
+        records={Object.entries(vault.properties)
+          .filter(([key]) => key.startsWith(PropertyKeyPrefixes.RECORD))
+          .map(([key, value]) => ({ key, value }))}
+      />
     </>
   );
 }

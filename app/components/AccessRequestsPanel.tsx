@@ -26,9 +26,7 @@ const getItemIcon = (name: string, source: string) => {
     nameLower.includes("panel")
   ) {
     return (
-      <div className="record-type-icon lab" style={{ width: "40px", height: "40px" }}>
-        LA
-      </div>
+      <div className="record-type-icon lab">LA</div>
     );
   }
   if (nameLower.includes("allergy") || nameLower.includes("alert")) {
@@ -42,9 +40,7 @@ const getItemIcon = (name: string, source: string) => {
     nameLower.includes("prescription")
   ) {
     return (
-      <div className="record-type-icon rx" style={{ width: "40px", height: "40px" }}>
-        RX
-      </div>
+      <div className="record-type-icon rx">RX</div>
     );
   }
   if (
@@ -54,9 +50,7 @@ const getItemIcon = (name: string, source: string) => {
     nameLower.includes("scan")
   ) {
     return (
-      <div className="record-type-icon imaging" style={{ width: "40px", height: "40px" }}>
-        IM
-      </div>
+      <div className="record-type-icon imaging">IM</div>
     );
   }
   return <DocumentIcon className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />;
