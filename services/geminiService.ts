@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import { UploadedDocument } from '../types'
+import { UploadedDocument, ChatMessage } from '../types'
 
 // Fix: Recommended pattern is to create a new instance before each call to ensure latest configuration.
 export const explainMedicalRequest = async (request: {
@@ -28,21 +28,22 @@ export const explainMedicalRequest = async (request: {
 
 export const testGeminiConnection = async () => {
 	try {
-		const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+		const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 		const response = await ai.models.generateContent({
-			model: "gemini-3-flash-preview",
-			contents: "Hello! This is a test message. Please respond with 'Gemini API connection successful!'",
+			model: 'gemini-3-flash-preview',
+			contents:
+				"Hello! This is a test message. Please respond with 'Gemini API connection successful!'",
 			config: {
 				temperature: 0.1,
-			}
-		});
-		console.log("✅ Gemini API Test Response:", response.text);
-		return response.text;
+			},
+		})
+		console.log('✅ Gemini API Test Response:', response.text)
+		return response.text
 	} catch (error) {
-		console.error("❌ Gemini API Test Failed:", error);
-		return "Connection failed";
+		console.error('❌ Gemini API Test Failed:', error)
+		return 'Connection failed'
 	}
-};
+}
 
 export const analyzeHealthInsight = async (records: any[]) => {
 	try {
@@ -113,5 +114,109 @@ export const extractPDFContent = async (
 				'Document processing failed. Please try again or contact support.',
 			structuredFields: {},
 		}
+	}
+}
+
+export const chatWithDocuments = async (
+	userMessage: string,
+	documents: UploadedDocument[],
+	chatHistory: ChatMessage[],
+): Promise<string> => {
+	try {
+		if (documents.length === 0) {
+			return "I don't see any documents uploaded yet. Please upload some medical documents first so I can help answer questions about them."
+		}
+
+		const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+
+		// Phase 1: Determine which documents are relevant
+		const documentSummaries = documents.map((doc, index) => ({
+			index,
+			title: doc.extractedData.title,
+			type: doc.extractedData.type,
+			date: doc.extractedData.date || 'Unknown date',
+			summary: doc.extractedData.summary,
+		}))
+
+		const relevancePrompt = `Given the user's question: "${userMessage}"
+
+Here are the available documents:
+${documentSummaries
+	.map(
+		(doc) => `Document ${doc.index + 1}: ${doc.title} (${doc.type}, ${doc.date})
+Summary: ${doc.summary}`,
+	)
+	.join('\n\n')}
+
+Please analyze which documents are most relevant to answer this question. Return only a JSON array of document indices (0-based) that should be included for context. If no documents are relevant, return an empty array.
+
+Example response: [0, 2, 4] or []`
+
+		const relevanceResponse = await ai.models.generateContent({
+			model: 'gemini-3-flash-preview',
+			contents: relevancePrompt,
+			config: {
+				temperature: 0.1,
+				responseMimeType: 'application/json',
+			},
+		})
+
+		let relevantIndices: number[] = []
+		try {
+			relevantIndices = JSON.parse(relevanceResponse.text)
+			// Filter to ensure valid indices
+			relevantIndices = relevantIndices.filter(
+				(i) => Number.isInteger(i) && i >= 0 && i < documents.length,
+			)
+		} catch (parseError) {
+			console.warn(
+				'Failed to parse relevance response, using all documents:',
+				parseError,
+			)
+			relevantIndices = documents.map((_, i) => i)
+		}
+
+		// Phase 2: Answer the question with relevant document content
+		const contextDocs = relevantIndices.map((index) => documents[index])
+
+		const contextPrompt =
+			contextDocs.length > 0
+				? `You are a helpful AI assistant answering questions about the user's medical documents.
+
+Relevant document content:
+${contextDocs
+	.map(
+		(
+			doc,
+			i,
+		) => `Document ${i + 1}: ${doc.extractedData.title} (${doc.extractedData.type})
+Full content: ${doc.extractedData.content}`,
+	)
+	.join('\n\n')}
+
+${chatHistory.length > 0 ? `Previous conversation:\n${chatHistory.map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n')}\n\n` : ''}
+
+User's question: ${userMessage}
+
+Please provide a helpful, accurate answer based on the document content. Be concise but thorough. If the question cannot be answered from the available documents, say so clearly.`
+				: `You are a helpful AI assistant answering questions about the user's medical documents.
+
+No documents were found to be relevant to the question: "${userMessage}"
+
+Please respond appropriately, explaining that you don't have relevant information from the uploaded documents.`
+
+		const answerResponse = await ai.models.generateContent({
+			model: 'gemini-3-flash-preview',
+			contents: contextPrompt,
+			config: {
+				temperature: 0.7,
+				maxOutputTokens: 1000,
+			},
+		})
+
+		return answerResponse.text.trim()
+	} catch (error) {
+		console.error('Chat with documents error:', error)
+		return 'I apologize, but I encountered an error while processing your question. Please try again.'
 	}
 }

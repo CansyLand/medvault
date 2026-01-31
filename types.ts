@@ -1,11 +1,25 @@
+export interface RequestedDataItem {
+	id: string
+	name: string // "Recent Blood Work", "X-Ray (Thorax)"
+	source: 'Documents' | 'Profile'
+	accessType: 'Read Access' | 'Write Access'
+	enabled: boolean // Toggle state
+	documentId?: string // Reference to UploadedDocument if from docs
+	recordId?: string // Reference to MedicalRecord if from mock
+}
+
 export interface DataRequest {
 	id: string
 	requester: string
 	purpose: string
-	fields: string[]
+	fields: string[] // Keep for backwards compatibility
+	requestedItems: RequestedDataItem[] // NEW: detailed items with toggles
 	duration: string
 	status: 'pending' | 'approved' | 'denied' | 'expired' | 'revoked'
 	timestamp: string
+	format?: string // "FHIR JSON"
+	validity?: string // "30 Days"
+	retention?: string // "Clinical Duration"
 }
 
 export interface MedicalRecord {
@@ -50,4 +64,11 @@ export interface UploadedDocument {
 		summary: string // AI-generated summary
 		structuredFields: Record<string, any> // Key medical data points
 	}
+}
+
+export interface ChatMessage {
+	id: string
+	role: 'user' | 'assistant'
+	content: string
+	timestamp: Date
 }

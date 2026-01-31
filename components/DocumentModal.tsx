@@ -105,11 +105,19 @@ export const DocumentModal: React.FC<DocumentModalProps> = ({
 						<div className='w-full h-[500px]'>
 							<object
 								data={`data:application/pdf;base64,${pdfBase64}`}
-								type="application/pdf"
+								type='application/pdf'
 								className='w-full h-full border rounded-lg'
 								title={fileName}
 							>
-								<p>Unable to display PDF. <a href={`data:application/pdf;base64,${pdfBase64}`} download={fileName}>Download PDF</a></p>
+								<p>
+									Unable to display PDF.{' '}
+									<a
+										href={`data:application/pdf;base64,${pdfBase64}`}
+										download={fileName}
+									>
+										Download PDF
+									</a>
+								</p>
 							</object>
 						</div>
 					)}

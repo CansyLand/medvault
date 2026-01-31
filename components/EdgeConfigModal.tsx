@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Edge } from '@xyflow/react'
-import { CheckIcon } from './Icons'
+import { MedicalRecord, UploadedDocument } from '../types'
+import {
+	ActivityIcon,
+	AlertCircleIcon,
+} from './Icons'
+
+interface DataItem {
+	id: string
+	name: string
+	source: 'Documents' | 'Profile'
+	type: string
+}
 
 interface EdgeConfigModalProps {
 	edge: Edge | null
@@ -9,10 +20,31 @@ interface EdgeConfigModalProps {
 	onClose: () => void
 	onSave: (edgeId: string, sharedDataTypes: string[]) => void
 	onRevoke: (edgeId: string) => void
+	mockRecords: MedicalRecord[]
+	uploadedDocs: UploadedDocument[]
 }
 
-// Available data types from existing MOCK_RECORDS
-const AVAILABLE_DATA_TYPES = ['Imaging', 'Lab', 'Rx']
+// Helper to get icon based on item type
+const getItemIcon = (name: string, source: string) => {
+	const nameLower = name.toLowerCase()
+	if (nameLower.includes('blood') || nameLower.includes('lab') || nameLower.includes('panel')) {
+		return <ActivityIcon className='w-5 h-5 text-blue-500' />
+	}
+	if (nameLower.includes('allergy') || nameLower.includes('alert')) {
+		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
+	}
+	if (nameLower.includes('medication') || nameLower.includes('rx') || nameLower.includes('prescription')) {
+		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
+	}
+	if (nameLower.includes('x-ray') || nameLower.includes('mri') || nameLower.includes('imaging') || nameLower.includes('scan') || nameLower.includes('thorax')) {
+		return <ActivityIcon className='w-5 h-5 text-blue-500' />
+	}
+	// Default based on source
+	if (source === 'Profile') {
+		return <AlertCircleIcon className='w-5 h-5 text-orange-500' />
+	}
+	return <ActivityIcon className='w-5 h-5 text-blue-500' />
+}
 
 export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 	edge,
@@ -21,27 +53,66 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 	onClose,
 	onSave,
 	onRevoke,
+	mockRecords,
+	uploadedDocs,
 }) => {
-	const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	// Generate data items from mock records and uploaded documents
+	const dataItems = useMemo<DataItem[]>(() => {
+		const items: DataItem[] = []
+		
+		// Add mock records
+		mockRecords.forEach((record) => {
+			items.push({
+				id: `record-${record.id}`,
+				name: record.title,
+				source: 'Documents',
+				type: record.type,
+			})
+		})
+		
+		// Add uploaded documents
+		uploadedDocs.forEach((doc) => {
+			items.push({
+				id: `doc-${doc.id}`,
+				name: doc.extractedData.title,
+				source: 'Documents',
+				type: doc.extractedData.type,
+			})
+		})
+		
+		return items
+	}, [mockRecords, uploadedDocs])
 
 	useEffect(() => {
 		if (edge && edge.data) {
-			setSelectedTypes(edge.data.sharedDataTypes || [])
+			// Convert sharedDataTypes to item IDs if they exist
+			const existingTypes = edge.data.sharedDataTypes || []
+			// Try to match existing types to item IDs
+			const matchedIds = dataItems
+				.filter((item) => existingTypes.includes(item.type) || existingTypes.includes(item.id))
+				.map((item) => item.id)
+			setSelectedIds(matchedIds)
 		}
-	}, [edge])
+	}, [edge, dataItems])
 
 	if (!isOpen || !edge) return null
 
 	const sourceNode = nodes.find((n) => n.id === edge.source)
 	const targetNode = nodes.find((n) => n.id === edge.target)
 
-	const handleTypeToggle = (type: string) => {
-		setSelectedTypes((prev) =>
-			prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+	const handleToggle = (itemId: string) => {
+		setSelectedIds((prev) =>
+			prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId],
 		)
 	}
 
 	const handleSave = () => {
+		// Convert selected IDs back to data types for compatibility
+		const selectedTypes = dataItems
+			.filter((item) => selectedIds.includes(item.id))
+			.map((item) => item.id)
 		onSave(edge.id, selectedTypes)
 		onClose()
 	}
@@ -67,38 +138,56 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 				<div className='p-6 space-y-6'>
 					<div>
 						<h4 className='text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 font-merriweather'>
-							Select Data Types to Share
+							Select Data to Share
 						</h4>
-						<div className='space-y-3 font-sans'>
-							{AVAILABLE_DATA_TYPES.map((type) => (
-								<label
-									key={type}
-									className='flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-mint transition-colors cursor-pointer'
-								>
-									<div className='flex items-center gap-3'>
-										<div
-											className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-												selectedTypes.includes(type)
-													? 'bg-mint border-teal-deep'
-													: 'border-slate-300 bg-white'
+						<div className='space-y-3 font-sans max-h-64 overflow-y-auto'>
+							{dataItems.length > 0 ? (
+								dataItems.map((item) => (
+									<div
+										key={item.id}
+										onClick={() => handleToggle(item.id)}
+										className='flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-300 transition-colors cursor-pointer'
+									>
+										<div className='flex items-center gap-3'>
+											<div className='w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200'>
+												{getItemIcon(item.name, item.source)}
+											</div>
+											<div>
+												<div className='font-semibold text-slate-800 text-sm'>
+													{item.name}
+												</div>
+												<div className='text-xs text-slate-500'>
+													Source: {item.source} • Read Access
+												</div>
+											</div>
+										</div>
+										{/* Toggle Switch */}
+										<button
+											onClick={(e) => {
+												e.stopPropagation()
+												handleToggle(item.id)
+											}}
+											className={`relative w-12 h-7 rounded-full transition-colors ${
+												selectedIds.includes(item.id)
+													? 'bg-blue-500'
+													: 'bg-slate-300'
 											}`}
 										>
-											{selectedTypes.includes(type) && (
-												<CheckIcon className='w-3 h-3 text-teal-deep' />
-											)}
-										</div>
-										<span className='text-sm font-semibold text-slate-700'>
-											{type}
-										</span>
+											<div
+												className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+													selectedIds.includes(item.id)
+														? 'translate-x-6'
+														: 'translate-x-1'
+												}`}
+											/>
+										</button>
 									</div>
-									<input
-										type='checkbox'
-										checked={selectedTypes.includes(type)}
-										onChange={() => handleTypeToggle(type)}
-										className='sr-only'
-									/>
-								</label>
-							))}
+								))
+							) : (
+								<div className='p-4 text-center text-slate-400 text-sm'>
+									No records available. Upload documents to share them.
+								</div>
+							)}
 						</div>
 					</div>
 
@@ -109,21 +198,23 @@ export const EdgeConfigModal: React.FC<EdgeConfigModalProps> = ({
 									Currently Sharing
 								</div>
 								<div className='text-xs text-slate-600'>
-									{selectedTypes.length} of {AVAILABLE_DATA_TYPES.length} data
-									types
+									{selectedIds.length} of {dataItems.length} items
 								</div>
 							</div>
-							<div className='flex gap-1'>
-								{AVAILABLE_DATA_TYPES.map((type) => (
+							<div className='flex gap-1 flex-wrap max-w-[100px] justify-end'>
+								{dataItems.slice(0, 6).map((item) => (
 									<div
-										key={type}
+										key={item.id}
 										className={`w-2 h-2 rounded-full ${
-											selectedTypes.includes(type)
+											selectedIds.includes(item.id)
 												? 'bg-teal-deep'
 												: 'bg-slate-300'
 										}`}
 									/>
 								))}
+								{dataItems.length > 6 && (
+									<span className='text-xs text-slate-400'>...</span>
+								)}
 							</div>
 						</div>
 					</div>

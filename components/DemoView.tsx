@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { DataRequest, MedicalRecord, UploadedDocument } from '../types'
+import { DataRequest, MedicalRecord, UploadedDocument, RequestedDataItem } from '../types'
 import {
-	explainMedicalRequest,
 	analyzeHealthInsight,
 	extractPDFContent,
 	testGeminiConnection,
 } from '../services/geminiService'
 import {
 	ShieldIcon,
-	LockIcon,
-	HistoryIcon,
-	CheckIcon,
 	UploadIcon,
 } from './Icons'
 import { AccessNetworkFlow } from './AccessNetworkFlow'
 import { EdgeConfigModal } from './EdgeConfigModal'
 import { DocumentModal } from './DocumentModal'
+import { ChatAssistant } from './ChatAssistant'
+import { AccessRequestsPanel } from './AccessRequestsPanel'
 import { Edge } from '@xyflow/react'
 
 const MOCK_RECORDS: MedicalRecord[] = [
@@ -45,22 +43,82 @@ const MOCK_RECORDS: MedicalRecord[] = [
 const INITIAL_REQUESTS: DataRequest[] = [
 	{
 		id: 'req-1',
-		requester: 'CardioLife Specialty',
-		purpose: 'Pre-surgical assessment for aortic valve',
-		fields: ['MRI.scan', 'Medications.current'],
+		requester: 'Stanford Medical Center',
+		purpose: 'Oncology Consultation Pre-screening',
+		fields: ['MRI.scan', 'Medications.current', 'Allergies', 'Blood Work'],
+		requestedItems: [
+			{
+				id: 'item-1',
+				name: 'Recent Blood Work',
+				source: 'Documents',
+				accessType: 'Read Access',
+				enabled: true,
+				recordId: '2',
+			},
+			{
+				id: 'item-2',
+				name: 'Allergy List',
+				source: 'Profile',
+				accessType: 'Read Access',
+				enabled: true,
+			},
+			{
+				id: 'item-3',
+				name: 'Medication History',
+				source: 'Profile',
+				accessType: 'Read Access',
+				enabled: true,
+			},
+			{
+				id: 'item-4',
+				name: 'X-Ray (Thorax)',
+				source: 'Documents',
+				accessType: 'Read Access',
+				enabled: true,
+				recordId: '1',
+			},
+		],
 		duration: '30 days',
 		status: 'pending',
-		timestamp: '2 mins ago',
+		timestamp: '2023-10-24',
+		format: 'FHIR JSON',
+		validity: '30 Days',
+		retention: 'Clinical Duration',
+	},
+	{
+		id: 'req-2',
+		requester: 'MediLife Insurance',
+		purpose: 'Policy Renewal Risk Assessment',
+		fields: ['Lab Results', 'Imaging'],
+		requestedItems: [
+			{
+				id: 'item-5',
+				name: 'Full Blood Panel',
+				source: 'Documents',
+				accessType: 'Read Access',
+				enabled: true,
+				recordId: '2',
+			},
+			{
+				id: 'item-6',
+				name: 'Chest MRI',
+				source: 'Documents',
+				accessType: 'Read Access',
+				enabled: true,
+				recordId: '1',
+			},
+		],
+		duration: '14 days',
+		status: 'pending',
+		timestamp: '2023-10-23',
+		format: 'FHIR JSON',
+		validity: '14 Days',
+		retention: 'Policy Duration',
 	},
 ]
 
 export const DemoView: React.FC = () => {
 	const [requests, setRequests] = useState<DataRequest[]>(INITIAL_REQUESTS)
-	const [selectedRequest, setSelectedRequest] = useState<DataRequest | null>(
-		null,
-	)
-	const [explanation, setExplanation] = useState<string | null>(null)
-	const [loadingExplanation, setLoadingExplanation] = useState(false)
 	const [insight, setInsight] = useState<string>(
 		'Welcome to your vault. Your data is encrypted.',
 	)
@@ -81,26 +139,6 @@ export const DemoView: React.FC = () => {
 		fetchInsight()
 	}, [])
 
-	const handleReview = async (req: DataRequest) => {
-		setSelectedRequest(req)
-		setLoadingExplanation(true)
-		const expl = await explainMedicalRequest({
-			requester: req.requester,
-			purpose: req.purpose,
-			fields: req.fields,
-		})
-		setExplanation(expl || '')
-		setLoadingExplanation(false)
-	}
-
-	const handleDecision = (id: string, decision: 'approved' | 'denied') => {
-		setRequests((prev) =>
-			prev.map((r) => (r.id === id ? { ...r, status: decision } : r)),
-		)
-		setSelectedRequest(null)
-		setExplanation(null)
-	}
-
 	const handleEdgeClick = (edge: Edge) => {
 		setSelectedEdge(edge)
 		setShowEdgeModal(true)
@@ -118,6 +156,28 @@ export const DemoView: React.FC = () => {
 		console.log('Revoking edge access:', edgeId)
 		setShowEdgeModal(false)
 		setSelectedEdge(null)
+	}
+
+	// Access Request Panel handlers
+	const handleApproveSelected = (requestId: string, selectedItems: RequestedDataItem[]) => {
+		console.log('Approving selected items for request:', requestId, selectedItems)
+		setRequests((prev) =>
+			prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r)),
+		)
+	}
+
+	const handleApproveAll = (requestId: string) => {
+		console.log('Approving all items for request:', requestId)
+		setRequests((prev) =>
+			prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r)),
+		)
+	}
+
+	const handleDenyRequest = (requestId: string) => {
+		console.log('Denying request:', requestId)
+		setRequests((prev) =>
+			prev.map((r) => (r.id === requestId ? { ...r, status: 'denied' } : r)),
+		)
 	}
 
 	const handleFileUpload = async (
@@ -277,80 +337,24 @@ export const DemoView: React.FC = () => {
 
 				{/* Tab Content */}
 				{activeTab === 'history' && (
-					<div className='bg-white p-6 rounded-2xl border border-slate-200 min-h-[400px] shadow-sm'>
-						<h3 className='font-bold text-xl mb-6 flex items-center gap-2 font-merriweather'>
-							<HistoryIcon className='w-6 h-6 text-slate-400' />
-							Access History
-						</h3>
-
-						<div className='space-y-4 font-sans'>
-							{requests.map((req) => (
-								<div
-									key={req.id}
-									className={`p-4 rounded-2xl border transition-all ${req.status === 'pending' ? 'bg-mint-pale border-mint shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60'}`}
-								>
-									<div className='flex flex-wrap justify-between items-start gap-4'>
-										<div className='flex-1'>
-											<div className='flex items-center gap-2 mb-1'>
-												<span className='font-bold text-slate-900 text-lg'>
-													{req.requester}
-												</span>
-												<span className='text-[10px] px-2 py-0.5 bg-mint/30 text-teal-deep rounded-full font-black uppercase tracking-wider'>
-													Pending Review
-												</span>
-											</div>
-											<p className='text-sm text-slate-600 mb-2 font-medium'>
-												{req.purpose}
-											</p>
-											<div className='flex flex-wrap gap-2'>
-												{req.fields.map((f) => (
-													<span
-														key={f}
-														className='text-[10px] uppercase tracking-wider font-black bg-white px-2 py-1 rounded border border-slate-200 text-slate-500'
-													>
-														{f}
-													</span>
-												))}
-											</div>
-										</div>
-										<div className='flex flex-col items-end gap-2'>
-											<span className='text-[10px] text-slate-400 font-bold uppercase tracking-tight'>
-												{req.timestamp}
-											</span>
-											{req.status === 'pending' ? (
-												<button
-													onClick={() => handleReview(req)}
-													className='bg-slate-900 text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest hover:bg-teal-deep transition-all shadow-md'
-												>
-													Review
-												</button>
-											) : (
-												<div className='flex items-center gap-1 text-xs font-black uppercase tracking-widest capitalize'>
-													{req.status === 'approved' ? (
-														<>
-															<CheckIcon className='w-4 h-4 text-green-500' />{' '}
-															Authorized
-														</>
-													) : (
-														<span className='text-red-500'>Denied</span>
-													)}
-												</div>
-											)}
-										</div>
-									</div>
-								</div>
-							))}
+					<div className='min-h-[400px]'>
+						<div className='mb-6'>
+							<h3 className='font-bold text-2xl font-merriweather'>
+								Access Requests
+							</h3>
+							<p className='text-sm text-slate-600 mt-1'>
+								Review and manage third-party requests to access your vault.
+							</p>
 						</div>
 
-						{!selectedRequest &&
-							requests.filter((r) => r.status === 'pending').length === 0 && (
-								<div className='flex flex-col items-center justify-center py-20 text-slate-400'>
-									<ShieldIcon className='w-12 h-12 mb-4 opacity-10' />
-									<p className='font-bold uppercase tracking-widest text-xs opacity-50'>
-										Secure & Silent
-									</p>
-								</div>
-							)}
+						<AccessRequestsPanel
+							requests={requests}
+							mockRecords={MOCK_RECORDS}
+							uploadedDocs={uploadedDocs}
+							onApproveSelected={handleApproveSelected}
+							onApproveAll={handleApproveAll}
+							onDeny={handleDenyRequest}
+						/>
 					</div>
 				)}
 
@@ -370,76 +374,6 @@ export const DemoView: React.FC = () => {
 					</div>
 				)}
 			</div>
-
-			{/* Modal: Review Detail */}
-			{selectedRequest && (
-				<div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md'>
-					<div className='bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200'>
-						<div className='p-6 bg-white border-b border-slate-100'>
-							<h3 className='text-xl font-bold font-merriweather'>
-								Security Review
-							</h3>
-							<p className='text-teal-deep font-black text-[10px] uppercase tracking-[0.2em] mt-1'>
-								Origin: {selectedRequest.requester}
-							</p>
-						</div>
-						<div className='p-6 space-y-6'>
-							<div className='bg-mint-pale p-4 rounded-xl border border-mint/20'>
-								<h4 className='text-[10px] font-black text-teal-deep uppercase tracking-widest mb-2 font-merriweather'>
-									AI Plain-Language Summary
-								</h4>
-								{loadingExplanation ? (
-									<div className='flex items-center gap-3 py-2 text-teal-deep font-medium font-sans'>
-										<div className='animate-spin rounded-full h-4 w-4 border-2 border-teal-deep border-t-transparent'></div>
-										Decoding request intent...
-									</div>
-								) : (
-									<p className='text-slate-700 leading-relaxed text-sm font-serif italic'>
-										{explanation}
-									</p>
-								)}
-							</div>
-
-							<div>
-								<h4 className='text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 font-merriweather'>
-									Fields Requested
-								</h4>
-								<div className='space-y-2 font-sans'>
-									{selectedRequest.fields.map((field) => (
-										<div
-											key={field}
-											className='flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200'
-										>
-											<span className='text-sm font-bold text-slate-700 uppercase tracking-tight'>
-												{field}
-											</span>
-											<div className='w-2 h-2 rounded-full bg-teal-deep shadow-[0_0_8px_rgba(15,118,110,1)]'></div>
-										</div>
-									))}
-								</div>
-							</div>
-
-							<div className='grid grid-cols-2 gap-4 pt-4 font-sans'>
-								<button
-									onClick={() => handleDecision(selectedRequest.id, 'denied')}
-									className='py-4 px-4 rounded-full border-2 border-slate-200 text-slate-500 font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition-colors'
-								>
-									Block
-								</button>
-								<button
-									onClick={() => handleDecision(selectedRequest.id, 'approved')}
-									className='py-4 px-4 rounded-full bg-mint text-teal-deep font-black uppercase tracking-widest text-xs hover:bg-teal-deep hover:text-white transition-all shadow-lg shadow-mint/20'
-								>
-									Authorize
-								</button>
-							</div>
-							<p className='text-[10px] text-center text-slate-400 font-bold uppercase tracking-tight'>
-								All authorizations are recorded on the append-only MedVault log.
-							</p>
-						</div>
-					</div>
-				</div>
-			)}
 
 			{/* Edge Configuration Modal */}
 			<EdgeConfigModal
@@ -463,6 +397,8 @@ export const DemoView: React.FC = () => {
 				}}
 				onSave={handleEdgeSave}
 				onRevoke={handleEdgeRevoke}
+				mockRecords={MOCK_RECORDS}
+				uploadedDocs={uploadedDocs}
 			/>
 
 			{/* Document Modal */}
@@ -474,6 +410,9 @@ export const DemoView: React.FC = () => {
 					setSelectedDoc(null)
 				}}
 			/>
+
+			{/* Chat Assistant */}
+			<ChatAssistant documents={uploadedDocs} />
 		</div>
 	)
 }
