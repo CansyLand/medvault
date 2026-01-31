@@ -36,7 +36,7 @@ import {
   getShares,
   type SharesResponse
 } from "../lib/api";
-import { useEventStream, type EntityState } from "./useEventStream";
+import { useEventStream, type EntityState, type EntityEvent } from "./useEventStream";
 
 const CREDENTIAL_ID_KEY = "passkeyCredentialId";
 const USER_ID_KEY = "passkeyUserId";
@@ -274,6 +274,11 @@ export function useVault() {
       const sealedKey = await sealKeyForShare(entityPrivateKey, code);
       const { expiresAt } = await createShare(code, propertyName, sealedKey);
       setGeneratedShare({ code, propertyName, expiresAt });
+      // Emit ShareCreated event for audit log
+      eventStream.appendEvent({
+        type: "ShareCreated",
+        data: { propertyName },
+      });
       toast.success(`Share code generated for ${propertyName}`);
       return { code, propertyName, expiresAt };
     },
@@ -297,6 +302,14 @@ export function useVault() {
       // Refresh shares list
       const updatedShares = await getShares();
       setShares(updatedShares);
+      // Emit ShareAccepted event for audit log
+      eventStream.appendEvent({
+        type: "ShareAccepted",
+        data: { 
+          sourceEntityId: result.sourceEntityId,
+          propertyName: result.propertyName,
+        },
+      });
       toast.success(`Now receiving ${result.propertyName} from ${result.sourceEntityId.slice(0, 8)}...`);
       return result;
     },
@@ -321,6 +334,17 @@ export function useVault() {
         // Refresh shares list
         const updatedShares = await getShares();
         setShares(updatedShares);
+        // Emit ShareRevoked event for audit log
+        const direction = params.sourceEntityId ? "incoming" : "outgoing";
+        const entityIdForEvent = params.sourceEntityId || params.targetEntityId || "";
+        eventStream.appendEvent({
+          type: "ShareRevoked",
+          data: {
+            entityId: entityIdForEvent,
+            propertyName: params.propertyName,
+            direction,
+          },
+        });
         toast.success("Share removed");
       }
       return removed;
@@ -415,6 +439,14 @@ export function useVault() {
   const removeShare = (params: { targetEntityId?: string; sourceEntityId?: string; propertyName: string }) =>
     revokeShareMutation.mutateAsync(params);
 
+  // Record rename - emit event for audit log
+  const renameRecord = (key: string, oldName: string, newName: string) => {
+    eventStream.appendEvent({
+      type: "RecordRenamed",
+      data: { key, oldName, newName },
+    });
+  };
+
   return {
     signedIn,
     supportsPasskeys,
@@ -424,6 +456,8 @@ export function useVault() {
     state: eventStream.state,
     properties: eventStream.state?.properties ?? {},
     connected: eventStream.connected,
+    // Event history for audit log
+    events: eventStream.events,
     inviteCode,
     setInviteCode,
     generatedInvite,
@@ -440,6 +474,7 @@ export function useVault() {
     // Property management
     setProperty: eventStream.setProperty,
     deleteProperty: eventStream.deleteProperty,
+    renameRecord,
     // Share-related
     shares,
     sharedData: eventStream.sharedData,

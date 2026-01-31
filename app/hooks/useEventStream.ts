@@ -5,7 +5,14 @@ import { io, Socket } from "socket.io-client";
 import { encryptJson, decryptJson, openSharedKey, type EncryptedPayload, type SealedInvitePayload } from "../lib/crypto";
 
 // Client-side event types
-export type EventType = "EntityCreated" | "PropertySet" | "PropertyDeleted";
+export type EventType = 
+  | "EntityCreated" 
+  | "PropertySet" 
+  | "PropertyDeleted"
+  | "RecordRenamed"
+  | "ShareCreated"
+  | "ShareAccepted"
+  | "ShareRevoked";
 
 export type EntityCreatedData = {
   entityId: string;
@@ -20,7 +27,35 @@ export type PropertyDeletedData = {
   key: string;
 };
 
-export type EventData = EntityCreatedData | PropertySetData | PropertyDeletedData;
+export type ShareCreatedData = {
+  propertyName: string;
+};
+
+export type ShareAcceptedData = {
+  sourceEntityId: string;
+  propertyName: string;
+};
+
+export type ShareRevokedData = {
+  entityId: string;
+  propertyName: string;
+  direction: "incoming" | "outgoing";
+};
+
+export type RecordRenamedData = {
+  key: string;
+  oldName: string;
+  newName: string;
+};
+
+export type EventData = 
+  | EntityCreatedData 
+  | PropertySetData 
+  | PropertyDeletedData
+  | RecordRenamedData
+  | ShareCreatedData
+  | ShareAcceptedData
+  | ShareRevokedData;
 
 // Decrypted event (client-side only)
 export type EntityEvent = {

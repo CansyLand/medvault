@@ -12,6 +12,7 @@ import { EnhancedSharingSection } from "./components/EnhancedSharingSection";
 import { DevicesSection } from "./components/DevicesSection";
 import { SettingsSection } from "./components/SettingsSection";
 import { AccessNetworkFlow } from "./components/AccessNetworkFlow";
+import { ActivityLogSection } from "./components/ActivityLogSection";
 import { ChatAssistant } from "./components/ChatAssistant";
 import { PropertyKeyPrefixes } from "./types/medical";
 
@@ -105,6 +106,7 @@ export default function HomePage() {
               properties={vault.properties}
               onSetProperty={vault.setProperty}
               onDeleteProperty={vault.deleteProperty}
+              onRenameRecord={vault.renameRecord}
               disabled={vault.isBusy || !vault.connected}
             />
           )}
@@ -138,6 +140,10 @@ export default function HomePage() {
               isCreating={vault.isCreatingShare}
               isAccepting={vault.isAcceptingShare}
             />
+          )}
+
+          {activeSection === "activity" && (
+            <ActivityLogSection events={vault.events} />
           )}
 
           {activeSection === "devices" && (

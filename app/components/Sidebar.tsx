@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CopyableEntityId } from "./CopyableEntityId";
-import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon } from "./Icons";
+import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon } from "./Icons";
 
 type NavItem = {
   id: string;
@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { id: "records", label: "Medical Records", icon: <DocumentIcon className="w-5 h-5" /> },
   { id: "network", label: "Access Network", icon: <NetworkIcon className="w-5 h-5" /> },
   { id: "sharing", label: "Sharing", icon: <ShareIcon className="w-5 h-5" /> },
+  { id: "activity", label: "Activity Log", icon: <HistoryIcon className="w-5 h-5" /> },
   { id: "devices", label: "Devices", icon: <DeviceIcon className="w-5 h-5" /> },
   { id: "settings", label: "Settings", icon: <SettingsIcon className="w-5 h-5" /> },
 ];

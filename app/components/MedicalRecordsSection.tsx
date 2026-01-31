@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { DocumentIcon } from "./Icons";
 import { DocumentUpload } from "./DocumentUpload";
 import { DocumentModal } from "./DocumentModal";
 import {
   type MedicalRecord,
   parseRecordFromProperty,
+  serializeRecordForProperty,
   getRecordTypeDisplayName,
   getRecordTypeIconClass,
   PropertyKeyPrefixes,
@@ -16,6 +17,7 @@ interface MedicalRecordsSectionProps {
   properties: Record<string, string>;
   onSetProperty: (key: string, value: string) => void;
   onDeleteProperty: (key: string) => void;
+  onRenameRecord?: (key: string, oldName: string, newName: string) => void;
   disabled: boolean;
 }
 
@@ -23,11 +25,23 @@ export function MedicalRecordsSection({
   properties,
   onSetProperty,
   onDeleteProperty,
+  onRenameRecord,
   disabled,
 }: MedicalRecordsSectionProps) {
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingKey && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingKey]);
 
   // Parse medical records from properties
   const records = useMemo(() => {
@@ -88,6 +102,48 @@ export function MedicalRecordsSection({
     }
   };
 
+  const startRenaming = (key: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingKey(key);
+    setEditingName(currentName);
+  };
+
+  const cancelRenaming = () => {
+    setEditingKey(null);
+    setEditingName("");
+  };
+
+  const saveRename = (key: string, record: MedicalRecord) => {
+    const newName = editingName.trim();
+    if (!newName || newName === record.title) {
+      cancelRenaming();
+      return;
+    }
+
+    const oldName = record.title;
+    const updatedRecord: MedicalRecord = {
+      ...record,
+      title: newName,
+      updatedAt: new Date().toISOString(),
+    };
+
+    onSetProperty(key, serializeRecordForProperty(updatedRecord));
+    
+    if (onRenameRecord) {
+      onRenameRecord(key, oldName, newName);
+    }
+
+    cancelRenaming();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, key: string, record: MedicalRecord) => {
+    if (e.key === "Enter") {
+      saveRename(key, record);
+    } else if (e.key === "Escape") {
+      cancelRenaming();
+    }
+  };
+
   return (
     <div className="section">
       <div className="section-header">
@@ -111,41 +167,74 @@ export function MedicalRecordsSection({
           </div>
         ) : (
           <ul className="property-list">
-            {records.map(({ key, record, pdfKey }) => (
-              <li
-                key={key}
-                className="property-item"
-                onClick={() => handleRecordClick(record, pdfKey)}
-                style={{ cursor: "pointer" }}
-              >
-                <div 
-                  className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}
-                  style={{ width: '24px', height: '24px', fontSize: '0.6rem', borderRadius: '6px' }}
+            {records.map(({ key, record, pdfKey }) => {
+              const isEditing = editingKey === key;
+              
+              return (
+                <li
+                  key={key}
+                  className="property-item"
+                  onClick={() => !isEditing && handleRecordClick(record, pdfKey)}
+                  style={{ cursor: isEditing ? "default" : "pointer" }}
                 >
-                  {getRecordTypeDisplayName(record.type).slice(0, 2).toUpperCase()}
-                </div>
-                <div className="property-content">
-                  <span className="property-key">{record.title}</span>
-                  <span className="property-value">
-                    {record.summary?.slice(0, 100)}
-                    {record.summary && record.summary.length > 100 ? "..." : ""}
-                  </span>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                    {record.date || "No date"} • {record.provider || "Unknown provider"}
-                  </span>
-                </div>
-                <button
-                  className="small danger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(key, pdfKey);
-                  }}
-                  disabled={disabled}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
+                  <div 
+                    className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}
+                    style={{ width: '24px', height: '24px', fontSize: '0.6rem', borderRadius: '6px' }}
+                  >
+                    {getRecordTypeDisplayName(record.type).slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="property-content">
+                    {isEditing ? (
+                      <div className="rename-form" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, key, record)}
+                          onBlur={() => saveRename(key, record)}
+                          className="rename-input"
+                          placeholder="Enter new name..."
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <span className="property-key">{record.title}</span>
+                        <span className="property-value">
+                          {record.summary?.slice(0, 100)}
+                          {record.summary && record.summary.length > 100 ? "..." : ""}
+                        </span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          {record.date || "No date"} • {record.provider || "Unknown provider"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <div className="property-actions">
+                    {!isEditing && (
+                      <button
+                        className="small secondary"
+                        onClick={(e) => startRenaming(key, record.title, e)}
+                        disabled={disabled}
+                        title="Rename"
+                      >
+                        Rename
+                      </button>
+                    )}
+                    <button
+                      className="small danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(key, pdfKey);
+                      }}
+                      disabled={disabled || isEditing}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
