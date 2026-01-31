@@ -10,6 +10,7 @@ interface ChatAssistantProps {
 
 export function ChatAssistant({ records }: ChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -106,7 +107,7 @@ export function ChatAssistant({ records }: ChatAssistantProps) {
         }}
         aria-label="Open chat assistant"
       >
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg style={{ width: "24px", height: "24px" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       </button>
@@ -116,10 +117,14 @@ export function ChatAssistant({ records }: ChatAssistantProps) {
         <div
           style={{
             position: "fixed",
-            bottom: "96px",
+            bottom: isExpanded ? "24px" : "96px",
             right: "24px",
-            width: "384px",
-            height: "500px",
+            left: isExpanded ? "24px" : "auto",
+            width: isExpanded ? "auto" : "384px",
+            height: isExpanded ? "calc(100vh - 48px)" : "500px",
+            maxWidth: isExpanded ? "800px" : "384px",
+            marginLeft: isExpanded ? "auto" : undefined,
+            marginRight: isExpanded ? "auto" : undefined,
             background: "white",
             borderRadius: "20px",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
@@ -128,44 +133,83 @@ export function ChatAssistant({ records }: ChatAssistantProps) {
             flexDirection: "column",
             overflow: "hidden",
             border: "1px solid var(--border)",
+            transition: "all 0.2s ease",
           }}
         >
           {/* Header */}
           <div
             style={{
               background: "var(--mint)",
-              padding: "1rem 1.5rem",
+              padding: "0.75rem 1rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               borderBottom: "1px solid var(--border)",
             }}
           >
-            <h3 style={{ fontWeight: 700, color: "var(--teal-deep)", fontSize: "1.125rem" }}>
+            <h3 style={{ fontWeight: 700, color: "var(--teal-deep)", fontSize: "1rem" }}>
               Ask about your documents
             </h3>
-            <button
-              onClick={() => setIsOpen(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--teal-deep)",
-                cursor: "pointer",
-                padding: "4px",
-              }}
-              aria-label="Close chat"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {/* Expand/Collapse Button */}
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--teal-deep)",
+                  cursor: "pointer",
+                  padding: "6px",
+                  borderRadius: "6px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label={isExpanded ? "Collapse chat" : "Expand chat"}
+                title={isExpanded ? "Collapse" : "Expand"}
+              >
+                {isExpanded ? (
+                  <svg style={{ width: "18px", height: "18px" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L4 4m0 0v5m0-5h5m6 6l5 5m0 0v-5m0 5h-5" />
+                  </svg>
+                ) : (
+                  <svg style={{ width: "18px", height: "18px" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                  </svg>
+                )}
+              </button>
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsExpanded(false);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--teal-deep)",
+                  cursor: "pointer",
+                  padding: "6px",
+                  borderRadius: "6px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Close chat"
+                title="Close"
+              >
+                <svg style={{ width: "18px", height: "18px" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Messages Area */}
           <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
             {messages.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--text-muted)", marginTop: "2rem" }}>
-                <svg className="w-12 h-12" style={{ margin: "0 auto 1rem", opacity: 0.5 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg style={{ width: "48px", height: "48px", margin: "0 auto 1rem", opacity: 0.5 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
                 <p style={{ fontSize: "0.875rem" }}>
@@ -252,10 +296,14 @@ export function ChatAssistant({ records }: ChatAssistantProps) {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0, 0, 0, 0.1)",
-            zIndex: -10,
+            background: isExpanded ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.1)",
+            zIndex: 45,
+            transition: "background 0.2s ease",
           }}
-          onClick={() => setIsOpen(false)}
+          onClick={() => {
+            setIsOpen(false);
+            setIsExpanded(false);
+          }}
         />
       )}
 
