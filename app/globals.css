@@ -1341,3 +1341,292 @@ button.danger:hover:not(:disabled) {
     text-align: left;
   }
 }
+
+/* ==================== */
+/* Onboarding Wizard */
+/* ==================== */
+
+.onboarding-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, var(--mint-pale) 0%, var(--bg-primary) 50%, rgba(196, 181, 253, 0.1) 100%);
+}
+
+.onboarding-container {
+  max-width: 640px;
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.onboarding-header {
+  text-align: center;
+  padding: 2.5rem 2rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.onboarding-logo {
+  width: 56px;
+  height: 56px;
+  background: var(--mint);
+  color: var(--teal-deep);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.onboarding-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.onboarding-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+/* Progress Indicator */
+.onboarding-progress {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 70px;
+}
+
+.step-indicator {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 2px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.progress-step.active .step-indicator {
+  background: var(--mint);
+  color: var(--teal-deep);
+  border-color: var(--teal-deep);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.progress-step.completed .step-indicator {
+  background: var(--teal-deep);
+  color: white;
+  border-color: var(--teal-deep);
+}
+
+.step-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.progress-step.active .step-label {
+  color: var(--teal-deep);
+  font-weight: 600;
+}
+
+.progress-step.completed .step-label {
+  color: var(--text-secondary);
+}
+
+/* Form Content */
+.onboarding-content {
+  padding: 2rem;
+}
+
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-step {
+  animation: fadeIn 0.2s ease;
+}
+
+.form-step h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.form-step-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+/* Form Layout */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+}
+
+.form-error {
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.form-note {
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  margin-top: 1rem;
+}
+
+.form-note p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.form-note.success {
+  background: var(--mint-pale);
+  border: 1px solid var(--mint-secondary);
+}
+
+.form-note.success p {
+  color: var(--teal-deep);
+}
+
+/* Navigation Buttons */
+.onboarding-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+}
+
+.nav-spacer {
+  flex: 1;
+}
+
+.onboarding-nav button.skip {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.5rem 1rem;
+}
+
+.onboarding-nav button.skip:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .onboarding-page {
+    padding: 1rem;
+    align-items: flex-start;
+  }
+
+  .onboarding-container {
+    border-radius: 16px;
+  }
+
+  .onboarding-header {
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .onboarding-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .onboarding-content {
+    padding: 1.5rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-progress {
+    gap: 0.25rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .progress-step {
+    min-width: 50px;
+  }
+
+  .step-indicator {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .step-label {
+    font-size: 0.6rem;
+  }
+
+  .onboarding-nav {
+    flex-wrap: wrap;
+  }
+
+  .onboarding-nav button {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .nav-spacer {
+    display: none;
+  }
+}

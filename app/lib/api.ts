@@ -166,3 +166,41 @@ export async function getEntityRole(entityId: string): Promise<EntityRole | null
   const response = await fetchJson<{ role: EntityRole | null }>(`/api/entities/role?entityId=${entityId}`);
   return response.role;
 }
+
+// Profile types
+export type PublicProfile = {
+  displayName: string;
+  role: EntityRole;
+  subtitle?: string;
+  organizationName?: string;
+};
+
+export type SaveProfileRequest = {
+  displayName: string;
+  subtitle?: string;
+  organizationName?: string;
+};
+
+// Profile API functions
+export async function savePublicProfile(profile: SaveProfileRequest): Promise<{ success: boolean; profile: PublicProfile }> {
+  return fetchJson<{ success: boolean; profile: PublicProfile }>("/api/entities/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profile)
+  });
+}
+
+export async function getPublicProfile(entityId: string): Promise<PublicProfile | null> {
+  const response = await fetchJson<{ entityId: string; profile: PublicProfile | null }>(
+    `/api/entities/public-profile?entityId=${entityId}`
+  );
+  return response.profile;
+}
+
+export async function getPublicProfiles(entityIds: string[]): Promise<Record<string, PublicProfile>> {
+  if (entityIds.length === 0) return {};
+  const response = await fetchJson<{ profiles: Record<string, PublicProfile> }>(
+    `/api/entities/public-profile?entityIds=${entityIds.join(",")}`
+  );
+  return response.profiles;
+}

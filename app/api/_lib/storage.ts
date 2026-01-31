@@ -356,3 +356,39 @@ export async function deleteEntityProperty(entityId: string, propertyKey: string
     }
   }
 }
+
+// =====================
+// Public Profile Storage (for graph labels)
+// =====================
+
+// Public profile contains only non-sensitive display info
+export type PublicProfileData = {
+  displayName: string;
+  role: EntityRole;
+  subtitle?: string;
+  organizationName?: string;
+};
+
+function getPublicProfilePath(entityId: string): string {
+  return path.join(entitiesRoot, entityId, "public_profile.json");
+}
+
+export async function getPublicProfile(entityId: string): Promise<PublicProfileData | null> {
+  const filePath = getPublicProfilePath(entityId);
+  return readJsonFile<PublicProfileData | null>(filePath, null);
+}
+
+export async function setPublicProfile(entityId: string, profile: PublicProfileData): Promise<void> {
+  await ensureEntityDir(entityId);
+  await writeJsonFile(getPublicProfilePath(entityId), profile);
+}
+
+export async function getPublicProfiles(entityIds: string[]): Promise<Record<string, PublicProfileData | null>> {
+  const result: Record<string, PublicProfileData | null> = {};
+  await Promise.all(
+    entityIds.map(async (entityId) => {
+      result[entityId] = await getPublicProfile(entityId);
+    })
+  );
+  return result;
+}

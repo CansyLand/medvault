@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useEffect, useState } from "react";
 import {
   ReactFlow,
   Node,
@@ -22,11 +22,16 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ShieldIcon, DatabaseIcon, EyeIcon, HeartIcon } from "./Icons";
-import type { SharesResponse } from "../lib/api";
+import type { SharesResponse, PublicProfile, EntityRole } from "../lib/api";
+import { getPublicProfiles } from "../lib/api";
 import type { SharedPropertyValue } from "../hooks/useEventStream";
 
-// Custom Patient Node (center)
-const PatientNode: React.FC<NodeProps> = ({ data }) => {
+// Custom center node (current user's vault)
+const CenterNode: React.FC<NodeProps> = ({ data }) => {
+  const isPatient = data.role === "patient";
+  const displayName = (data.displayName as string) || "Your Vault";
+  const roleLabel = isPatient ? "Patient" : "Healthcare Provider";
+  
   return (
     <div style={{
       padding: '12px 16px',
@@ -45,14 +50,18 @@ const PatientNode: React.FC<NodeProps> = ({ data }) => {
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-          <HeartIcon className="w-4 h-4" style={{ color: 'white' }} />
+          {isPatient ? (
+            <HeartIcon className="w-4 h-4" style={{ color: 'white' }} />
+          ) : (
+            <ShieldIcon className="w-4 h-4" style={{ color: 'white' }} />
+          )}
         </div>
         <div>
           <div style={{ color: 'var(--teal-deep)', fontWeight: 700, fontSize: '0.9rem' }}>
-            Your Vault
+            {displayName}
           </div>
           <div style={{ color: 'var(--teal-deep)', opacity: 0.7, fontSize: '0.75rem' }}>
-            Patient
+            {roleLabel}
           </div>
         </div>
       </div>
@@ -64,19 +73,26 @@ const PatientNode: React.FC<NodeProps> = ({ data }) => {
   );
 };
 
-// Custom Entity Node (recipients)
+// Custom Entity Node (other entities in the network)
 const EntityNode: React.FC<NodeProps> = ({ data }) => {
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "Doctor":
-        return <ShieldIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
-      case "Hospital":
-        return <DatabaseIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
-      case "Researcher":
-        return <EyeIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
-      default:
-        return <ShieldIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
+  const role = data.role as EntityRole | undefined;
+  const isDoctor = role === "doctor";
+  const isPatient = role === "patient";
+  
+  const getIcon = () => {
+    if (isDoctor) {
+      return <ShieldIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
     }
+    if (isPatient) {
+      return <HeartIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
+    }
+    return <DatabaseIcon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />;
+  };
+
+  const getRoleLabel = () => {
+    if (isDoctor) return data.subtitle || "Healthcare Provider";
+    if (isPatient) return "Patient";
+    return "Entity";
   };
 
   return (
@@ -92,21 +108,26 @@ const EntityNode: React.FC<NodeProps> = ({ data }) => {
         <div style={{
           width: '32px',
           height: '32px',
-          background: 'var(--bg-tertiary)',
+          background: isPatient ? 'var(--mint)' : 'var(--bg-tertiary)',
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-          {getIcon(data.type as string)}
+          {getIcon()}
         </div>
         <div>
           <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem' }}>
-            {data.name as string}
+            {data.displayName as string}
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-            {data.type as string}
+            {getRoleLabel()}
           </div>
+          {data.organizationName && (
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '2px' }}>
+              {data.organizationName as string}
+            </div>
+          )}
         </div>
       </div>
       <Handle type="target" position={Position.Top} style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
@@ -207,7 +228,7 @@ const CustomEdge: React.FC<EdgeProps> = ({
 };
 
 const nodeTypes = {
-  patient: PatientNode,
+  center: CenterNode,
   entity: EntityNode,
 };
 
@@ -221,6 +242,8 @@ interface AccessNetworkFlowProps {
   onEdgeClick?: (edge: Edge) => void;
   onRevokeShare?: (params: { targetEntityId: string; propertyName: string }) => void;
   className?: string;
+  userDisplayName?: string;
+  userRole?: EntityRole | null;
 }
 
 export function AccessNetworkFlow({
@@ -229,14 +252,47 @@ export function AccessNetworkFlow({
   onEdgeClick,
   onRevokeShare,
   className = "",
+  userDisplayName,
+  userRole,
 }: AccessNetworkFlowProps) {
+  // Track loaded profiles for network entities
+  const [entityProfiles, setEntityProfiles] = useState<Record<string, PublicProfile>>({});
+
+  // Collect all entity IDs from shares
+  const entityIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (shares?.outgoing) {
+      shares.outgoing.forEach((share) => ids.add(share.targetEntityId));
+    }
+    if (shares?.incoming) {
+      shares.incoming.forEach((share) => ids.add(share.sourceEntityId));
+    }
+    return Array.from(ids);
+  }, [shares]);
+
+  // Fetch profiles for all entities in the network
+  useEffect(() => {
+    if (entityIds.length === 0) return;
+    
+    getPublicProfiles(entityIds)
+      .then((profiles) => {
+        setEntityProfiles(profiles);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch entity profiles:", err);
+      });
+  }, [entityIds]);
+
   // Build nodes and edges from shares data
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes: Node[] = [
       {
-        id: "patient",
-        type: "patient",
-        data: { label: "Your Vault" },
+        id: "center",
+        type: "center",
+        data: { 
+          displayName: userDisplayName || "Your Vault",
+          role: userRole || "patient",
+        },
         position: { x: 300, y: 200 },
       },
     ];
@@ -245,25 +301,46 @@ export function AccessNetworkFlow({
     const entityPositions: Record<string, { x: number; y: number }> = {};
     let entityIndex = 0;
 
+    // Helper to get profile data for an entity
+    const getEntityData = (entityId: string) => {
+      const profile = entityProfiles[entityId];
+      if (profile) {
+        return {
+          displayName: profile.displayName,
+          role: profile.role,
+          subtitle: profile.subtitle,
+          organizationName: profile.organizationName,
+        };
+      }
+      return {
+        displayName: `Entity ${entityId.slice(0, 8)}...`,
+        role: undefined,
+        subtitle: undefined,
+        organizationName: undefined,
+      };
+    };
+
     // Add nodes for outgoing shares
     if (shares?.outgoing) {
+      const uniqueTargets = new Set<string>();
+      shares.outgoing.forEach((share) => uniqueTargets.add(share.targetEntityId));
+      const totalTargets = uniqueTargets.size;
+
       shares.outgoing.forEach((share) => {
         if (!entityPositions[share.targetEntityId]) {
-          // Calculate position in a circle around the patient
-          const angle = (entityIndex * 2 * Math.PI) / Math.max(shares.outgoing.length, 4);
+          // Calculate position in a circle around the center
+          const angle = (entityIndex * 2 * Math.PI) / Math.max(totalTargets, 4);
           const radius = 200;
           entityPositions[share.targetEntityId] = {
             x: 300 + radius * Math.cos(angle - Math.PI / 2),
             y: 200 + radius * Math.sin(angle - Math.PI / 2),
           };
           
+          const entityData = getEntityData(share.targetEntityId);
           nodes.push({
             id: share.targetEntityId,
             type: "entity",
-            data: { 
-              name: `Entity ${share.targetEntityId.slice(0, 8)}...`, 
-              type: "Healthcare Provider" 
-            },
+            data: entityData,
             position: entityPositions[share.targetEntityId],
           });
           entityIndex++;
@@ -271,7 +348,7 @@ export function AccessNetworkFlow({
 
         // Add edge for this share
         const existingEdge = edges.find(
-          (e) => e.source === "patient" && e.target === share.targetEntityId
+          (e) => e.source === "center" && e.target === share.targetEntityId
         );
         
         if (existingEdge) {
@@ -282,7 +359,7 @@ export function AccessNetworkFlow({
         } else {
           edges.push({
             id: `edge-${share.targetEntityId}-${share.propertyName}`,
-            source: "patient",
+            source: "center",
             target: share.targetEntityId,
             type: "custom",
             data: { 
@@ -295,8 +372,58 @@ export function AccessNetworkFlow({
       });
     }
 
+    // Add nodes for incoming shares (data shared WITH the user)
+    if (shares?.incoming) {
+      const uniqueSources = new Set<string>();
+      shares.incoming.forEach((share) => uniqueSources.add(share.sourceEntityId));
+      
+      shares.incoming.forEach((share) => {
+        if (!entityPositions[share.sourceEntityId]) {
+          // Position incoming shares on the opposite side
+          const angle = (entityIndex * 2 * Math.PI) / Math.max(uniqueSources.size + (shares?.outgoing?.length || 0), 4);
+          const radius = 200;
+          entityPositions[share.sourceEntityId] = {
+            x: 300 + radius * Math.cos(angle - Math.PI / 2),
+            y: 200 + radius * Math.sin(angle - Math.PI / 2),
+          };
+          
+          const entityData = getEntityData(share.sourceEntityId);
+          nodes.push({
+            id: share.sourceEntityId,
+            type: "entity",
+            data: entityData,
+            position: entityPositions[share.sourceEntityId],
+          });
+          entityIndex++;
+        }
+
+        // Add edge for incoming share (from source to center)
+        const existingEdge = edges.find(
+          (e) => e.source === share.sourceEntityId && e.target === "center"
+        );
+        
+        if (existingEdge) {
+          const types = existingEdge.data?.sharedDataTypes as string[] || [];
+          types.push(share.propertyName);
+          existingEdge.data = { ...existingEdge.data, sharedDataTypes: types };
+        } else {
+          edges.push({
+            id: `edge-incoming-${share.sourceEntityId}-${share.propertyName}`,
+            source: share.sourceEntityId,
+            target: "center",
+            type: "custom",
+            data: { 
+              sharedDataTypes: [share.propertyName], 
+              status: "active",
+              sourceEntityId: share.sourceEntityId,
+            },
+          });
+        }
+      });
+    }
+
     return { initialNodes: nodes, initialEdges: edges };
-  }, [shares]);
+  }, [shares, entityProfiles, userDisplayName, userRole]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -375,7 +502,7 @@ export function AccessNetworkFlow({
       >
         <Controls />
         <MiniMap
-          nodeColor={(node) => node.type === 'patient' ? 'var(--mint)' : 'var(--bg-primary)'}
+          nodeColor={(node) => node.type === 'center' ? 'var(--mint)' : 'var(--bg-primary)'}
           maskColor="rgba(255, 255, 255, 0.8)"
         />
         <Background color="var(--border)" gap={20} />

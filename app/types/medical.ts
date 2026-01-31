@@ -197,7 +197,164 @@ export const PropertyKeyPrefixes = {
   PDF: "pdf:",            // PDF binary data (base64)
   ACCESS: "access:",      // Access grant metadata
   META: "meta:",          // Metadata
+  PROFILE: "profile:",    // User profile data
 } as const;
+
+// =====================
+// User Profile Types
+// =====================
+
+// Address structure used by both patient and provider
+export interface Address {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}
+
+// Patient profile - comprehensive health vault owner data
+export interface PatientProfile {
+  // Basic Info
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: "male" | "female" | "other" | "prefer_not_to_say";
+  
+  // Contact
+  email: string;
+  phone: string;
+  address: Address;
+  
+  // Emergency Contact
+  emergencyContact: {
+    name: string;
+    relationship: string;
+    phone: string;
+  };
+  
+  // Medical Info
+  bloodType: string;
+  allergies: string[];
+  primaryPhysician: string;
+  
+  // Insurance
+  insurance: {
+    provider: string;
+    policyNumber: string;
+    groupNumber: string;
+  };
+  
+  // Metadata
+  onboardingComplete: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Organization types for healthcare providers
+export type OrganizationType = "hospital" | "clinic" | "private_practice" | "laboratory" | "pharmacy" | "other";
+
+// Provider profile - healthcare organization/professional data
+export interface ProviderProfile {
+  // Basic Info
+  firstName: string;
+  lastName: string;
+  title: string; // Dr., NP, PA, etc.
+  
+  // Organization
+  organizationName: string;
+  organizationType: OrganizationType;
+  specialty: string;
+  
+  // Credentials
+  licenseNumber: string;
+  npiNumber: string;
+  accreditations: string[];
+  
+  // Contact
+  email: string;
+  phone: string;
+  facilityAddress: Address;
+  
+  // Metadata
+  onboardingComplete: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Union type for any user profile
+export type UserProfile = PatientProfile | ProviderProfile;
+
+// Public profile - non-sensitive display info for graph labels
+export interface PublicProfile {
+  entityId: string;
+  displayName: string;
+  role: "patient" | "doctor";
+  subtitle?: string; // Specialty for doctors, empty for patients
+  organizationName?: string;
+}
+
+// Type guard for patient profile
+export function isPatientProfile(profile: UserProfile): profile is PatientProfile {
+  return "emergencyContact" in profile && "insurance" in profile;
+}
+
+// Type guard for provider profile
+export function isProviderProfile(profile: UserProfile): profile is ProviderProfile {
+  return "organizationName" in profile && "npiNumber" in profile;
+}
+
+// Helper to get display name from profile
+export function getDisplayName(profile: UserProfile): string {
+  if (isProviderProfile(profile)) {
+    return `${profile.title} ${profile.firstName} ${profile.lastName}`.trim();
+  }
+  return `${profile.firstName} ${profile.lastName}`.trim();
+}
+
+// Helper to create default patient profile
+export function createDefaultPatientProfile(): PatientProfile {
+  const now = new Date().toISOString();
+  return {
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "prefer_not_to_say",
+    email: "",
+    phone: "",
+    address: { street: "", city: "", state: "", zipCode: "", country: "" },
+    emergencyContact: { name: "", relationship: "", phone: "" },
+    bloodType: "",
+    allergies: [],
+    primaryPhysician: "",
+    insurance: { provider: "", policyNumber: "", groupNumber: "" },
+    onboardingComplete: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+// Helper to create default provider profile
+export function createDefaultProviderProfile(): ProviderProfile {
+  const now = new Date().toISOString();
+  return {
+    firstName: "",
+    lastName: "",
+    title: "",
+    organizationName: "",
+    organizationType: "private_practice",
+    specialty: "",
+    licenseNumber: "",
+    npiNumber: "",
+    accreditations: [],
+    email: "",
+    phone: "",
+    facilityAddress: { street: "", city: "", state: "", zipCode: "", country: "" },
+    onboardingComplete: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 // Helper to create a property key for a medical record
 export function createRecordPropertyKey(recordId: string): string {

@@ -38,9 +38,19 @@ import {
   revokeShare,
   getShares,
   transferToPatient,
+  savePublicProfile,
   type SharesResponse,
   type EntityRole
 } from "../lib/api";
+import {
+  type PatientProfile,
+  type ProviderProfile,
+  type UserProfile,
+  PropertyKeyPrefixes,
+  isPatientProfile,
+  isProviderProfile,
+  getDisplayName,
+} from "../types/medical";
 import { useEventStream, type EntityState, type EntityEvent } from "./useEventStream";
 
 const CREDENTIAL_ID_KEY = "passkeyCredentialId";
@@ -91,6 +101,11 @@ export function useVault() {
   const [generatedShare, setGeneratedShare] = useState<{ code: string; propertyName: string; expiresAt: number } | null>(null);
   const [shares, setShares] = useState<SharesResponse>({ outgoing: [], incoming: [] });
   const [pendingShareCodes, setPendingShareCodes] = useState<Map<string, string>>(new Map()); // sourceEntityId -> code
+
+  // Profile-related state
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean | null>(null); // null = loading
+  const profilePropertyKey = `${PropertyKeyPrefixes.PROFILE}data`;
 
   // Real-time event stream for profile data (encrypted)
   const eventStream = useEventStream(
@@ -278,6 +293,8 @@ export function useVault() {
       setGeneratedInvite(null);
       setShares({ outgoing: [], incoming: [] });
       setGeneratedShare(null);
+      setUserProfile(null);
+      setIsOnboardingComplete(null);
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Failed to reset.");
@@ -475,6 +492,62 @@ export function useVault() {
     }
   }, [signedIn, entityId]);
 
+  // Load profile from properties when available
+  useEffect(() => {
+    const properties = eventStream.state?.properties ?? {};
+    const profileData = properties[profilePropertyKey];
+    
+    if (profileData) {
+      try {
+        const parsed = JSON.parse(profileData) as UserProfile;
+        setUserProfile(parsed);
+        setIsOnboardingComplete(parsed.onboardingComplete);
+      } catch {
+        setIsOnboardingComplete(false);
+      }
+    } else if (eventStream.connected && eventStream.state) {
+      // Connected but no profile found - onboarding needed
+      setIsOnboardingComplete(false);
+    }
+  }, [eventStream.state?.properties, eventStream.connected, eventStream.state, profilePropertyKey]);
+
+  // Save profile mutation
+  const saveProfileMutation = useMutation({
+    mutationFn: async (profile: UserProfile) => {
+      if (!entityId || !entityPrivateKey) throw new Error("Not authenticated");
+      
+      // Save encrypted profile to event stream
+      const profileJson = JSON.stringify(profile);
+      eventStream.setProperty(profilePropertyKey, profileJson);
+      
+      // Also save public profile to server for graph labels
+      let displayName: string;
+      let subtitle: string | undefined;
+      let organizationName: string | undefined;
+      
+      if (isProviderProfile(profile)) {
+        displayName = getDisplayName(profile);
+        subtitle = profile.specialty || undefined;
+        organizationName = profile.organizationName || undefined;
+      } else if (isPatientProfile(profile)) {
+        displayName = getDisplayName(profile);
+      } else {
+        displayName = "Unknown User";
+      }
+      
+      await savePublicProfile({ displayName, subtitle, organizationName });
+      
+      setUserProfile(profile);
+      setIsOnboardingComplete(profile.onboardingComplete);
+      
+      toast.success("Profile saved successfully");
+      return profile;
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to save profile.");
+    }
+  });
+
   // Register keys for incoming shares when we have them
   useEffect(() => {
     shares.incoming.forEach(async (share) => {
@@ -499,6 +572,7 @@ export function useVault() {
       consumeShareMutation.isPending ||
       revokeShareMutation.isPending ||
       transferMutation.isPending ||
+      saveProfileMutation.isPending ||
       (restoreMutation.isPending && !restoreDone),
     [
       loginMutation.isPending,
@@ -509,6 +583,7 @@ export function useVault() {
       consumeShareMutation.isPending,
       revokeShareMutation.isPending,
       transferMutation.isPending,
+      saveProfileMutation.isPending,
       restoreMutation.isPending,
       restoreDone
     ]
@@ -530,7 +605,12 @@ export function useVault() {
     setEntityPrivateKey(null);
     setInviteCode("");
     setGeneratedInvite(null);
+    setUserProfile(null);
+    setIsOnboardingComplete(null);
   };
+
+  // Profile action
+  const saveProfile = (profile: UserProfile) => saveProfileMutation.mutateAsync(profile);
 
   const generateInvite = () => generateInviteMutation.mutateAsync();
 
@@ -602,5 +682,10 @@ export function useVault() {
     // Transfer-related (doctor only)
     isTransferring: transferMutation.isPending,
     transferRecords,
+    // Profile-related
+    userProfile,
+    isOnboardingComplete,
+    isSavingProfile: saveProfileMutation.isPending,
+    saveProfile,
   };
 }

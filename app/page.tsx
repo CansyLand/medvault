@@ -14,7 +14,8 @@ import { SettingsSection } from "./components/SettingsSection";
 import { AccessNetworkFlow } from "./components/AccessNetworkFlow";
 import { ActivityLogSection } from "./components/ActivityLogSection";
 import { ChatAssistant } from "./components/ChatAssistant";
-import { PropertyKeyPrefixes } from "./types/medical";
+import { OnboardingWizard } from "./components/OnboardingWizard";
+import { PropertyKeyPrefixes, getDisplayName } from "./types/medical";
 
 export default function HomePage() {
   const vault = useVault();
@@ -78,6 +79,53 @@ export default function HomePage() {
     );
   }
 
+  // Show onboarding wizard for new users who haven't completed setup
+  if (vault.isOnboardingComplete === false && vault.entityRole) {
+    return (
+      <>
+        <Toaster
+          position="bottom-center"
+          toastOptions={{
+            style: {
+              background: "#ffffff",
+              color: "#0f172a",
+              border: "1px solid #e2e8f0"
+            }
+          }}
+        />
+        <OnboardingWizard
+          role={vault.entityRole}
+          onComplete={vault.saveProfile}
+          isSubmitting={vault.isSavingProfile}
+        />
+      </>
+    );
+  }
+
+  // Show loading while checking onboarding status
+  if (vault.isOnboardingComplete === null) {
+    return (
+      <>
+        <Toaster
+          position="bottom-center"
+          toastOptions={{
+            style: {
+              background: "#ffffff",
+              color: "#0f172a",
+              border: "1px solid #e2e8f0"
+            }
+          }}
+        />
+        <main className="login-page">
+          <div className="login-card">
+            <h1 className="font-merriweather">Loading...</h1>
+            <p className="login-desc">Preparing your secure vault...</p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Toaster
@@ -123,6 +171,8 @@ export default function HomePage() {
                 shares={vault.shares}
                 sharedData={vault.sharedData}
                 onRevokeShare={(params) => vault.removeShare(params)}
+                userDisplayName={vault.userProfile ? getDisplayName(vault.userProfile) : undefined}
+                userRole={vault.entityRole}
               />
             </div>
           )}
