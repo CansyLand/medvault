@@ -125,6 +125,9 @@ export function useVault() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean | null>(null); // null = loading
   const profilePropertyKey = `${PropertyKeyPrefixes.PROFILE}data`;
+  
+  // Registered patients property key (for doctors to persist patient list)
+  const registeredPatientsKey = `${PropertyKeyPrefixes.PATIENTS}list`;
 
   // Real-time event stream for profile data (encrypted)
   const eventStream = useEventStream(
@@ -138,6 +141,72 @@ export function useVault() {
       (item) => item.sourceEntityId === patientEntityId
     );
   }, [eventStream.sharedData]);
+
+  // Get registered patients from properties (persisted list)
+  const registeredPatients = useMemo((): string[] => {
+    const properties = eventStream.state?.properties ?? {};
+    const patientsData = properties[registeredPatientsKey];
+    if (!patientsData) return [];
+    try {
+      const parsed = JSON.parse(patientsData);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [eventStream.state?.properties, registeredPatientsKey]);
+
+  // Function to register a new patient by entity ID
+  const registerPatient = useCallback((patientEntityId: string) => {
+    // Check if already registered
+    if (registeredPatients.includes(patientEntityId)) {
+      toast.info("Patient is already registered");
+      return;
+    }
+    
+    // Add to the list and persist
+    const updatedList = [...registeredPatients, patientEntityId];
+    eventStream.setProperty(registeredPatientsKey, JSON.stringify(updatedList));
+    toast.success("Patient registered successfully");
+  }, [registeredPatients, registeredPatientsKey, eventStream]);
+
+  // Function to unregister a patient
+  const unregisterPatient = useCallback((patientEntityId: string) => {
+    const updatedList = registeredPatients.filter(id => id !== patientEntityId);
+    eventStream.setProperty(registeredPatientsKey, JSON.stringify(updatedList));
+    toast.success("Patient removed from list");
+  }, [registeredPatients, registeredPatientsKey, eventStream]);
+
+  // Combined patient list: merge registered patients with those from shares
+  const allPatients = useMemo(() => {
+    const patientMap = new Map<string, { entityId: string; recordCount: number; registered: boolean }>();
+    
+    // Add patients from incoming shares
+    shares.incoming.forEach((share) => {
+      const existing = patientMap.get(share.sourceEntityId);
+      if (existing) {
+        existing.recordCount += 1;
+      } else {
+        patientMap.set(share.sourceEntityId, {
+          entityId: share.sourceEntityId,
+          recordCount: 1,
+          registered: registeredPatients.includes(share.sourceEntityId),
+        });
+      }
+    });
+    
+    // Add registered patients that don't have shares yet
+    registeredPatients.forEach((patientId) => {
+      if (!patientMap.has(patientId)) {
+        patientMap.set(patientId, {
+          entityId: patientId,
+          recordCount: 0,
+          registered: true,
+        });
+      }
+    });
+    
+    return Array.from(patientMap.values());
+  }, [shares.incoming, registeredPatients]);
 
   // Send initial EntityCreated event for new entities
   useEffect(() => {
@@ -710,6 +779,10 @@ export function useVault() {
     transferRecords,
     // Patient management (doctor only)
     patientList,
+    allPatients,
+    registeredPatients,
+    registerPatient,
+    unregisterPatient,
     getPatientRecords,
     // Profile-related
     userProfile,

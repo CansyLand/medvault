@@ -2,18 +2,25 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { HeartIcon, PlusIcon } from "./Icons";
-import type { SharesResponse, PublicProfile } from "../lib/api";
+import type { PublicProfile } from "../lib/api";
 import { getPublicProfiles } from "../lib/api";
 
 export interface PatientInfo {
   entityId: string;
   displayName: string;
   recordCount: number;
+  registered: boolean;
   lastActivity?: string;
 }
 
+interface PatientData {
+  entityId: string;
+  recordCount: number;
+  registered: boolean;
+}
+
 interface PatientListPanelProps {
-  shares: SharesResponse;
+  patients: PatientData[];
   selectedPatientId: string | null;
   onSelectPatient: (patientId: string | null) => void;
   onAddPatient: (entityId: string) => void;
@@ -21,7 +28,7 @@ interface PatientListPanelProps {
 }
 
 export function PatientListPanel({
-  shares,
+  patients: patientData,
   selectedPatientId,
   onSelectPatient,
   onAddPatient,
@@ -31,23 +38,8 @@ export function PatientListPanel({
   const [newPatientId, setNewPatientId] = useState("");
   const [patientProfiles, setPatientProfiles] = useState<Record<string, PublicProfile>>({});
 
-  // Derive patient list from incoming shares (unique sourceEntityIds)
-  const patientIds = useMemo(() => {
-    const ids = new Set<string>();
-    shares.incoming.forEach((share) => {
-      ids.add(share.sourceEntityId);
-    });
-    return Array.from(ids);
-  }, [shares.incoming]);
-
-  // Count records per patient
-  const recordCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    shares.incoming.forEach((share) => {
-      counts[share.sourceEntityId] = (counts[share.sourceEntityId] || 0) + 1;
-    });
-    return counts;
-  }, [shares.incoming]);
+  // Get patient IDs from the data
+  const patientIds = useMemo(() => patientData.map(p => p.entityId), [patientData]);
 
   // Fetch patient profiles
   useEffect(() => {
@@ -62,17 +54,18 @@ export function PatientListPanel({
       });
   }, [patientIds]);
 
-  // Build patient info list
+  // Build patient info list with profiles
   const patients: PatientInfo[] = useMemo(() => {
-    return patientIds.map((id) => {
-      const profile = patientProfiles[id];
+    return patientData.map((data) => {
+      const profile = patientProfiles[data.entityId];
       return {
-        entityId: id,
-        displayName: profile?.displayName || `Patient ${id.slice(0, 8)}...`,
-        recordCount: recordCounts[id] || 0,
+        entityId: data.entityId,
+        displayName: profile?.displayName || `Patient ${data.entityId.slice(0, 8)}...`,
+        recordCount: data.recordCount,
+        registered: data.registered,
       };
     });
-  }, [patientIds, patientProfiles, recordCounts]);
+  }, [patientData, patientProfiles]);
 
   const handleAddPatient = () => {
     if (!newPatientId.trim()) return;

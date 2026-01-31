@@ -30,6 +30,9 @@ interface MedicalRecordsSectionProps {
   // For doctor's patient view
   shares?: SharesResponse;
   sharedData?: SharedPropertyValue[];
+  // Patient management
+  allPatients?: Array<{ entityId: string; recordCount: number; registered: boolean }>;
+  onRegisterPatient?: (entityId: string) => void;
 }
 
 export function MedicalRecordsSection({
@@ -41,6 +44,8 @@ export function MedicalRecordsSection({
   entityRole,
   shares,
   sharedData,
+  allPatients,
+  onRegisterPatient,
 }: MedicalRecordsSectionProps) {
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
@@ -85,8 +90,10 @@ export function MedicalRecordsSection({
   }, [selectedPatientId, sharedData]);
   
   const handleAddPatient = (entityId: string) => {
-    // For now, just select the patient - in a full implementation,
-    // you might want to validate the entity exists first
+    // Register the patient (persists to vault) and select them
+    if (onRegisterPatient) {
+      onRegisterPatient(entityId);
+    }
     setSelectedPatientId(entityId);
   };
 
@@ -269,7 +276,7 @@ export function MedicalRecordsSection({
         {/* Two-column patient layout */}
         <div className="doctor-patient-layout">
           <PatientListPanel
-            shares={shares}
+            patients={allPatients || []}
             selectedPatientId={selectedPatientId}
             onSelectPatient={setSelectedPatientId}
             onAddPatient={handleAddPatient}

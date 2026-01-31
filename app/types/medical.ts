@@ -198,6 +198,7 @@ export const PropertyKeyPrefixes = {
   ACCESS: "access:",      // Access grant metadata
   META: "meta:",          // Metadata
   PROFILE: "profile:",    // User profile data
+  PATIENTS: "patients:",  // Registered patients list (for doctors)
 } as const;
 
 // =====================

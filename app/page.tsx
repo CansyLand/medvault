@@ -189,6 +189,8 @@ export default function HomePage() {
               entityRole={vault.entityRole}
               shares={vault.shares}
               sharedData={vault.sharedData}
+              allPatients={vault.allPatients}
+              onRegisterPatient={vault.registerPatient}
             />
           )}
 
