@@ -131,6 +131,7 @@ export const DemoView: React.FC = () => {
 	const [selectedDoc, setSelectedDoc] = useState<UploadedDocument | null>(null)
 	const [showDocModal, setShowDocModal] = useState(false)
 	const [uploading, setUploading] = useState(false)
+	const [processingFileName, setProcessingFileName] = useState<string | null>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
@@ -196,31 +197,40 @@ export const DemoView: React.FC = () => {
 		if (!file || !file.type.includes('pdf')) return
 
 		setUploading(true)
+		setProcessingFileName(file.name)
 		try {
 			// Convert file to base64
 			const fileReader = new FileReader()
 			fileReader.onload = async (e) => {
-				const base64 = (e.target?.result as string).split(',')[1]
+				try {
+					const base64 = (e.target?.result as string).split(',')[1]
 
-				// Extract content using Gemini
-				const extractedData = await extractPDFContent(base64)
+					// Extract content using Gemini
+					const extractedData = await extractPDFContent(base64)
 
-				// Create uploaded document
-				const newDoc: UploadedDocument = {
-					id: `doc-${Date.now()}`,
-					fileName: file.name,
-					uploadDate: new Date().toLocaleDateString(),
-					pdfBase64: base64,
-					extractedData,
+					// Create uploaded document
+					const newDoc: UploadedDocument = {
+						id: `doc-${Date.now()}`,
+						fileName: file.name,
+						uploadDate: new Date().toLocaleDateString(),
+						pdfBase64: base64,
+						extractedData,
+					}
+
+					setUploadedDocs((prev) => [...prev, newDoc])
+				} catch (error) {
+					console.error('Upload failed:', error)
+				} finally {
+					setUploading(false)
+					setProcessingFileName(null)
 				}
-
-				setUploadedDocs((prev) => [...prev, newDoc])
 			}
 			fileReader.readAsDataURL(file)
 		} catch (error) {
-			console.error('Upload failed:', error)
+			console.error('File reading failed:', error)
+			setUploading(false)
+			setProcessingFileName(null)
 		}
-		setUploading(false)
 	}
 
 	const handleDocClick = (doc: UploadedDocument) => {
@@ -260,6 +270,32 @@ export const DemoView: React.FC = () => {
 								</div>
 							</div>
 						))}
+						{/* Processing Indicator */}
+						{uploading && processingFileName && (
+							<div className='p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center gap-3 opacity-75'>
+								<div className='w-10 h-10 bg-lavender/20 flex items-center justify-center rounded-lg text-teal-deep font-bold text-xs'>
+									<div className='flex space-x-2'>
+										<div className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg' style={{ animationDuration: '0.6s' }}></div>
+										<div
+											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
+											style={{ animationDelay: '0.2s', animationDuration: '0.6s' }}
+										></div>
+										<div
+											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
+											style={{ animationDelay: '0.4s', animationDuration: '0.6s' }}
+										></div>
+									</div>
+								</div>
+								<div>
+									<div className='text-sm font-semibold text-slate-800'>
+										{processingFileName}
+									</div>
+									<div className='text-xs text-slate-500 font-medium'>
+										Processing... • AI Analysis
+									</div>
+								</div>
+							</div>
+						)}
 						{/* Uploaded Documents */}
 						{uploadedDocs.map((doc) => (
 							<div
@@ -287,7 +323,24 @@ export const DemoView: React.FC = () => {
 							disabled={uploading}
 							className='flex-1 py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-xl text-sm font-bold hover:border-teal-deep hover:text-teal-deep transition-all font-sans disabled:opacity-50 disabled:cursor-not-allowed'
 						>
-							{uploading ? 'Processing...' : '+ Add New Record'}
+							{uploading ? (
+								<div className='flex items-center justify-center gap-3'>
+									<span>Processing...</span>
+									<div className='flex space-x-2'>
+										<div className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg' style={{ animationDuration: '0.6s', transform: 'translateY(0px)' }}></div>
+										<div
+											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
+											style={{ animationDelay: '0.2s', animationDuration: '0.6s', transform: 'translateY(0px)' }}
+										></div>
+										<div
+											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
+											style={{ animationDelay: '0.4s', animationDuration: '0.6s', transform: 'translateY(0px)' }}
+										></div>
+									</div>
+								</div>
+							) : (
+								'+ Add New Record'
+							)}
 						</button>
 						<button
 							onClick={() => testGeminiConnection()}
