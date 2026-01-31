@@ -131,7 +131,9 @@ export const DemoView: React.FC = () => {
 	const [selectedDoc, setSelectedDoc] = useState<UploadedDocument | null>(null)
 	const [showDocModal, setShowDocModal] = useState(false)
 	const [uploading, setUploading] = useState(false)
-	const [processingFileName, setProcessingFileName] = useState<string | null>(null)
+	const [processingFileName, setProcessingFileName] = useState<string | null>(
+		null,
+	)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
@@ -275,14 +277,23 @@ export const DemoView: React.FC = () => {
 							<div className='p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center gap-3 opacity-75'>
 								<div className='w-10 h-10 bg-lavender/20 flex items-center justify-center rounded-lg text-teal-deep font-bold text-xs'>
 									<div className='flex space-x-2'>
-										<div className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg' style={{ animationDuration: '0.6s' }}></div>
 										<div
 											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
-											style={{ animationDelay: '0.2s', animationDuration: '0.6s' }}
+											style={{ animationDuration: '0.6s' }}
 										></div>
 										<div
 											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
-											style={{ animationDelay: '0.4s', animationDuration: '0.6s' }}
+											style={{
+												animationDelay: '0.2s',
+												animationDuration: '0.6s',
+											}}
+										></div>
+										<div
+											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
+											style={{
+												animationDelay: '0.4s',
+												animationDuration: '0.6s',
+											}}
 										></div>
 									</div>
 								</div>
@@ -327,14 +338,28 @@ export const DemoView: React.FC = () => {
 								<div className='flex items-center justify-center gap-3'>
 									<span>Processing...</span>
 									<div className='flex space-x-2'>
-										<div className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg' style={{ animationDuration: '0.6s', transform: 'translateY(0px)' }}></div>
 										<div
 											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
-											style={{ animationDelay: '0.2s', animationDuration: '0.6s', transform: 'translateY(0px)' }}
+											style={{
+												animationDuration: '0.6s',
+												transform: 'translateY(0px)',
+											}}
 										></div>
 										<div
 											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
-											style={{ animationDelay: '0.4s', animationDuration: '0.6s', transform: 'translateY(0px)' }}
+											style={{
+												animationDelay: '0.2s',
+												animationDuration: '0.6s',
+												transform: 'translateY(0px)',
+											}}
+										></div>
+										<div
+											className='w-2 h-2 bg-teal-deep rounded-full animate-bounce shadow-lg'
+											style={{
+												animationDelay: '0.4s',
+												animationDuration: '0.6s',
+												transform: 'translateY(0px)',
+											}}
 										></div>
 									</div>
 								</div>

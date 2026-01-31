@@ -35,7 +35,35 @@
               night: '#050505',
             }
           }
-        }
+        },
+        plugins: [
+          function({ addUtilities }) {
+            addUtilities({
+              '.prose-chat': {
+                'color': 'var(--tw-prose-body)',
+                'max-width': 'none',
+                'p': {
+                  'margin-top': '0.5em',
+                  'margin-bottom': '0.5em',
+                  'line-height': '1.4'
+                },
+                'strong': {
+                  'font-weight': '600',
+                  'color': 'var(--tw-prose-headings, inherit)'
+                },
+                'ul': {
+                  'margin-top': '0.5em',
+                  'margin-bottom': '0.5em',
+                  'padding-left': '1.5em'
+                },
+                'li': {
+                  'margin-top': '0.25em',
+                  'margin-bottom': '0.25em'
+                }
+              }
+            })
+          }
+        ]
       }
     </script>
     <style>

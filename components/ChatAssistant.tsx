@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { ChatIcon } from './Icons'
 import { chatWithDocuments } from '../services/geminiService'
 import { UploadedDocument, ChatMessage } from '../types'
@@ -30,7 +31,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ documents }) => {
 	}, [isOpen])
 
 	const handleSendMessage = async () => {
-		if (!inputValue.trim() || isLoading) return
+		if (!inputValue.trim() || isLoading) {
+			return
+		}
 
 		const userMessage: ChatMessage = {
 			id: `msg-${Date.now()}`,
@@ -146,7 +149,15 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ documents }) => {
 												: 'bg-slate-100 text-slate-800'
 										}`}
 									>
-										{message.content}
+										{message.role === 'assistant' ? (
+											<div className="prose-chat text-sm">
+												<ReactMarkdown>
+													{message.content}
+												</ReactMarkdown>
+											</div>
+										) : (
+											message.content
+										)}
 									</div>
 								</div>
 							))
@@ -179,6 +190,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ documents }) => {
 						<div className='flex gap-2'>
 							<input
 								ref={inputRef}
+								id="chat-input"
+								name="chat-input"
 								type='text'
 								value={inputValue}
 								onChange={(e) => setInputValue(e.target.value)}
