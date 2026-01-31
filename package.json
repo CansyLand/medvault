@@ -1,23 +1,34 @@
 {
-  "name": "medvault---personal-health-data-vault",
+  "name": "medvault",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "npx tsx server.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production npx tsx server.ts",
+    "lint": "next lint"
   },
   "dependencies": {
     "@google/genai": "^1.39.0",
+    "@simplewebauthn/browser": "13.2.2",
+    "@tanstack/react-query": "5.90.20",
     "@xyflow/react": "^12.10.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "idb-keyval": "6.2.2",
+    "iron-session": "8.0.4",
+    "libsodium-wrappers-sumo": "0.8.2",
+    "next": "16.1.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "socket.io": "4.8.3",
+    "socket.io-client": "4.8.3",
+    "sonner": "2.0.7"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@types/libsodium-wrappers-sumo": "0.8.2",
+    "@types/node": "25.1.0",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.3"
   }
 }

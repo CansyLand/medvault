@@ -1,0 +1,1014 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Merriweather:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* MedVault brand colors */
+  --mint: #a3ffba;
+  --mint-secondary: #6ee7b7;
+  --mint-pale: #f0fdf4;
+  --teal-deep: #0f766e;
+  --lavender: #c4b5fd;
+  --lavender-dark: #7c3aed;
+  --night: #0f172a;
+  
+  /* Background colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  
+  /* Border colors */
+  --border: #e2e8f0;
+  --border-light: #cbd5e1;
+  
+  /* Text colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  /* Accent colors */
+  --accent: #0f766e;
+  --accent-hover: #0d9488;
+  --accent-glow: rgba(15, 118, 110, 0.2);
+  
+  /* Status colors */
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  
+  /* Layout */
+  --sidebar-width: 280px;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==================== */
+/* Typography */
+/* ==================== */
+
+.font-merriweather {
+  font-family: "Merriweather", Georgia, serif;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ==================== */
+/* Login Page */
+/* ==================== */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, var(--mint-pale) 0%, var(--bg-primary) 50%, rgba(196, 181, 253, 0.1) 100%);
+}
+
+.login-card {
+  max-width: 420px;
+  width: 100%;
+  padding: 3rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+.login-brand {
+  margin-bottom: 1.5rem;
+}
+
+.login-logo {
+  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: var(--mint);
+  color: var(--teal-deep);
+  border-radius: 16px;
+  margin: 0 auto 1rem;
+}
+
+.login-card h1 {
+  font-family: "Merriweather", Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.login-desc {
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--mint);
+  color: var(--teal-deep);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: var(--teal-deep);
+  color: white;
+  box-shadow: 0 8px 30px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-hint {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.login-warning {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+/* ==================== */
+/* App Layout */
+/* ==================== */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ==================== */
+/* Mobile Header */
+/* ==================== */
+
+.mobile-header {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  padding: 0 1rem;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 100;
+}
+
+.menu-toggle {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.menu-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.mobile-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-family: "Merriweather", Georgia, serif;
+}
+
+.mobile-title .logo {
+  color: var(--teal-deep);
+  font-size: 1.25rem;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot.connected {
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+.status-dot.disconnected {
+  background: var(--warning);
+}
+
+/* ==================== */
+/* Sidebar */
+/* ==================== */
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 200;
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.brand .logo {
+  width: 40px;
+  height: 40px;
+  background: var(--mint);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--teal-deep);
+}
+
+.brand-name {
+  font-family: "Merriweather", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.status-indicator {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.status-indicator.connected {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.status-indicator.disconnected {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.nav-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--mint);
+  color: var(--teal-deep);
+  font-weight: 600;
+}
+
+.nav-icon {
+  font-size: 1.1rem;
+  width: 24px;
+  text-align: center;
+}
+
+.sidebar-footer {
+  padding: 1rem 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.entity-info {
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.entity-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.entity-id {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.copyable-entity-id {
+  font-family: "JetBrains Mono", monospace;
+  transition: all 0.15s ease;
+  border-radius: 4px;
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+  cursor: pointer;
+}
+
+.copyable-entity-id:hover {
+  background: var(--bg-hover);
+  color: var(--teal-deep);
+}
+
+.copyable-entity-id.copied {
+  background: var(--success);
+  color: white;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logout-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+/* ==================== */
+/* Main Content */
+/* ==================== */
+
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  padding: 2rem;
+  max-width: 900px;
+}
+
+/* ==================== */
+/* Section Styles */
+/* ==================== */
+
+.section {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.section-header h2 {
+  font-family: "Merriweather", Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.badge {
+  padding: 0.25rem 0.6rem;
+  background: var(--mint);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--teal-deep);
+}
+
+.section-desc {
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+}
+
+.subsection {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.subsection:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.subsection h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.subsection-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+/* ==================== */
+/* Form Elements */
+/* ==================== */
+
+input, select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--teal-deep);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+input:disabled, select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-small {
+  max-width: 150px;
+}
+
+button {
+  padding: 0.75rem 1.25rem;
+  background: var(--mint);
+  color: var(--teal-deep);
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  background: var(--teal-deep);
+  color: white;
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.small {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+
+button.secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+button.danger {
+  background: var(--danger);
+  color: white;
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
+/* ==================== */
+/* Add Property Form */
+/* ==================== */
+
+.add-property-form {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.add-property-form input:first-child {
+  flex: 0 0 auto;
+  width: 180px;
+}
+
+.add-property-form input:nth-child(2) {
+  flex: 1;
+}
+
+/* ==================== */
+/* Property List (Medical Records) */
+/* ==================== */
+
+.property-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.property-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: all 0.15s ease;
+}
+
+.property-item:hover {
+  border-color: var(--mint-secondary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.property-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+.property-key {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.property-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.property-value .empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.property-edit {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.property-edit input {
+  flex: 1;
+}
+
+.property-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ==================== */
+/* Share List */
+/* ==================== */
+
+.share-form {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.share-form select, .share-form input {
+  flex: 1;
+}
+
+.share-code-box, .invite-code-box {
+  padding: 1rem;
+  background: var(--mint-pale);
+  border: 1px solid var(--mint-secondary);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.share-code-label, .invite-code-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.share-code, .invite-code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--teal-deep);
+  letter-spacing: 0.05em;
+}
+
+.share-code-expires, .invite-code-expires {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.share-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.share-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.share-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.share-source, .share-target {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.share-property {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.share-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  color: var(--success);
+}
+
+.share-list.incoming .share-item {
+  background: var(--mint-pale);
+  border-color: var(--mint-secondary);
+}
+
+/* ==================== */
+/* Link Form */
+/* ==================== */
+
+.link-form {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.link-form input {
+  flex: 1;
+}
+
+/* ==================== */
+/* Info Grid */
+/* ==================== */
+
+.info-grid {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 16px;
+}
+
+.info-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.info-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+/* ==================== */
+/* Danger Zone */
+/* ==================== */
+
+.danger-zone {
+  padding: 1.5rem;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 16px;
+  margin-top: 2rem;
+}
+
+.danger-zone h3 {
+  color: var(--danger);
+}
+
+/* ==================== */
+/* Empty State */
+/* ==================== */
+
+.empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 1rem;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-hint {
+  font-size: 0.85rem;
+}
+
+/* ==================== */
+/* Medical Record Type Icons */
+/* ==================== */
+
+.record-type-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.record-type-icon.lab {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.record-type-icon.imaging {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.record-type-icon.rx {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.record-type-icon.notes {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.record-type-icon.default {
+  background: var(--mint);
+  color: var(--teal-deep);
+}
+
+/* ==================== */
+/* Card Styles */
+/* ==================== */
+
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1.5rem;
+  transition: all 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--mint-secondary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.card-dark {
+  background: var(--night);
+  border: 1px solid rgba(163, 255, 186, 0.1);
+  color: white;
+}
+
+/* ==================== */
+/* Gradient Text */
+/* ==================== */
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--teal-deep) 0%, var(--lavender-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ==================== */
+/* Mobile Responsive */
+/* ==================== */
+
+@media (max-width: 768px) {
+  .mobile-header {
+    display: flex;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 150;
+  }
+
+  .main-content {
+    margin-left: 0;
+    margin-top: 64px;
+    padding: 1.25rem;
+  }
+
+  .add-property-form {
+    flex-direction: column;
+  }
+
+  .add-property-form input:first-child {
+    width: 100%;
+  }
+
+  .share-form, .link-form {
+    flex-direction: column;
+  }
+
+  .property-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .property-item > button {
+    align-self: flex-end;
+    margin-top: 0.5rem;
+  }
+}
+
+/* ==================== */
+/* Tablet */
+/* ==================== */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+}
+
+/* ==================== */
+/* ReactFlow Customizations */
+/* ==================== */
+
+.react-flow__node {
+  border-radius: 16px;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__controls {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.react-flow__controls-button {
+  background: var(--bg-primary);
+  border: none;
+  color: var(--text-secondary);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.react-flow__minimap {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
