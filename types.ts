@@ -34,3 +34,20 @@ export interface AccessEdge {
 	sharedDataTypes: string[]
 	status: 'active' | 'pending' | 'revoked'
 }
+
+export interface UploadedDocument {
+	id: string
+	fileName: string
+	uploadDate: string
+	pdfBase64: string // For displaying original PDF
+	extractedData: {
+		type: string // e.g., "Lab Report", "Prescription", "Imaging"
+		language: string // e.g., "English", "German"
+		title: string
+		date: string | null
+		provider: string | null
+		content: string // Full extracted text
+		summary: string // AI-generated summary
+		structuredFields: Record<string, any> // Key medical data points
+	}
+}

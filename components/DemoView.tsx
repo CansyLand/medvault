@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { DataRequest, MedicalRecord } from '../types'
+import React, { useState, useEffect, useRef } from 'react'
+import { DataRequest, MedicalRecord, UploadedDocument } from '../types'
 import {
 	explainMedicalRequest,
 	analyzeHealthInsight,
+	extractPDFContent,
 } from '../services/geminiService'
 import {
 	ShieldIcon,
@@ -13,6 +14,7 @@ import {
 } from './Icons'
 import { AccessNetworkFlow } from './AccessNetworkFlow'
 import { EdgeConfigModal } from './EdgeConfigModal'
+import { DocumentModal } from './DocumentModal'
 import { Edge } from '@xyflow/react'
 
 const MOCK_RECORDS: MedicalRecord[] = [
@@ -64,6 +66,11 @@ export const DemoView: React.FC = () => {
 	const [activeTab, setActiveTab] = useState<'history' | 'network'>('history')
 	const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
 	const [showEdgeModal, setShowEdgeModal] = useState(false)
+	const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([])
+	const [selectedDoc, setSelectedDoc] = useState<UploadedDocument | null>(null)
+	const [showDocModal, setShowDocModal] = useState(false)
+	const [uploading, setUploading] = useState(false)
+	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
 		const fetchInsight = async () => {
@@ -112,6 +119,49 @@ export const DemoView: React.FC = () => {
 		setSelectedEdge(null)
 	}
 
+	const handleFileUpload = async (
+		event: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		const file = event.target.files?.[0]
+		if (!file || !file.type.includes('pdf')) return
+
+		setUploading(true)
+		try {
+			// Convert file to base64
+			const fileReader = new FileReader()
+			fileReader.onload = async (e) => {
+				const base64 = (e.target?.result as string).split(',')[1]
+
+				// Extract content using Gemini
+				const extractedData = await extractPDFContent(base64)
+
+				// Create uploaded document
+				const newDoc: UploadedDocument = {
+					id: `doc-${Date.now()}`,
+					fileName: file.name,
+					uploadDate: new Date().toLocaleDateString(),
+					pdfBase64: base64,
+					extractedData,
+				}
+
+				setUploadedDocs((prev) => [...prev, newDoc])
+			}
+			fileReader.readAsDataURL(file)
+		} catch (error) {
+			console.error('Upload failed:', error)
+		}
+		setUploading(false)
+	}
+
+	const handleDocClick = (doc: UploadedDocument) => {
+		setSelectedDoc(doc)
+		setShowDocModal(true)
+	}
+
+	const handleAddRecord = () => {
+		fileInputRef.current?.click()
+	}
+
 	return (
 		<div className='max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8 bg-background'>
 			{/* Left Sidebar: Records */}
@@ -140,10 +190,41 @@ export const DemoView: React.FC = () => {
 								</div>
 							</div>
 						))}
+						{/* Uploaded Documents */}
+						{uploadedDocs.map((doc) => (
+							<div
+								key={doc.id}
+								onClick={() => handleDocClick(doc)}
+								className='p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center gap-3 hover:border-mint transition-colors cursor-pointer'
+							>
+								<div className='w-10 h-10 bg-lavender/20 flex items-center justify-center rounded-lg text-teal-deep font-bold text-xs'>
+									PDF
+								</div>
+								<div>
+									<div className='text-sm font-semibold text-slate-800'>
+										{doc.extractedData.title}
+									</div>
+									<div className='text-xs text-slate-500 font-medium'>
+										{doc.uploadDate} • {doc.extractedData.type}
+									</div>
+								</div>
+							</div>
+						))}
 					</div>
-					<button className='w-full mt-4 py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-xl text-sm font-bold hover:border-teal-deep hover:text-teal-deep transition-all font-sans'>
-						+ Add New Record
+					<button
+						onClick={handleAddRecord}
+						disabled={uploading}
+						className='w-full mt-4 py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-xl text-sm font-bold hover:border-teal-deep hover:text-teal-deep transition-all font-sans disabled:opacity-50 disabled:cursor-not-allowed'
+					>
+						{uploading ? 'Processing...' : '+ Add New Record'}
 					</button>
+					<input
+						ref={fileInputRef}
+						type='file'
+						accept='.pdf'
+						onChange={handleFileUpload}
+						className='hidden'
+					/>
 				</div>
 
 				<div className='bg-slate-900 p-6 rounded-2xl text-white shadow-xl shadow-mint/5 border border-mint/10'>
@@ -373,6 +454,16 @@ export const DemoView: React.FC = () => {
 				}}
 				onSave={handleEdgeSave}
 				onRevoke={handleEdgeRevoke}
+			/>
+
+			{/* Document Modal */}
+			<DocumentModal
+				document={selectedDoc}
+				isOpen={showDocModal}
+				onClose={() => {
+					setShowDocModal(false)
+					setSelectedDoc(null)
+				}}
 			/>
 		</div>
 	)
