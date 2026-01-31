@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import { UploadedDocument, ChatMessage } from '../types'
+import { UploadedDocument, ChatMessage, PageContent } from '../types'
 
 // Fix: Recommended pattern is to create a new instance before each call to ensure latest configuration.
 export const explainMedicalRequest = async (request: {
@@ -121,24 +121,32 @@ export const chatWithDocuments = async (
 	userMessage: string,
 	documents: UploadedDocument[],
 	chatHistory: ChatMessage[],
+	pageContent?: PageContent,
 ): Promise<string> => {
 	try {
-		if (documents.length === 0) {
-			return "I don't see any documents uploaded yet. Please upload some medical documents first so I can help answer questions about them."
+		const hasDocuments = documents.length > 0
+		const hasPageContent = pageContent && pageContent.text.trim().length > 0
+
+		if (!hasDocuments && !hasPageContent) {
+			return "I don't see any documents uploaded or page content available. Please upload some medical documents or include page content to help answer questions."
 		}
 
 		const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
-		// Phase 1: Determine which documents are relevant
-		const documentSummaries = documents.map((doc, index) => ({
-			index,
-			title: doc.extractedData.title,
-			type: doc.extractedData.type,
-			date: doc.extractedData.date || 'Unknown date',
-			summary: doc.extractedData.summary,
-		}))
+		// Phase 1: Determine which documents are relevant (only if we have documents)
+		let relevantIndices: number[] = []
+		let contextDocs: UploadedDocument[] = []
 
-		const relevancePrompt = `Given the user's question: "${userMessage}"
+		if (hasDocuments) {
+			const documentSummaries = documents.map((doc, index) => ({
+				index,
+				title: doc.extractedData.title,
+				type: doc.extractedData.type,
+				date: doc.extractedData.date || 'Unknown date',
+				summary: doc.extractedData.summary,
+			}))
+
+			const relevancePrompt = `Given the user's question: "${userMessage}"
 
 Here are the available documents:
 ${documentSummaries
@@ -148,42 +156,42 @@ Summary: ${doc.summary}`,
 	)
 	.join('\n\n')}
 
+${hasPageContent ? `Current page content is also available: ${pageContent.title} (${pageContent.url})` : ''}
+
 Please analyze which documents are most relevant to answer this question. Return only a JSON array of document indices (0-based) that should be included for context. If no documents are relevant, return an empty array.
 
 Example response: [0, 2, 4] or []`
 
-		const relevanceResponse = await ai.models.generateContent({
-			model: 'gemini-3-flash-preview',
-			contents: relevancePrompt,
-			config: {
-				temperature: 0.1,
-				responseMimeType: 'application/json',
-			},
-		})
+			const relevanceResponse = await ai.models.generateContent({
+				model: 'gemini-3-flash-preview',
+				contents: relevancePrompt,
+				config: {
+					temperature: 0.1,
+					responseMimeType: 'application/json',
+				},
+			})
 
-		let relevantIndices: number[] = []
-		try {
-			relevantIndices = JSON.parse(relevanceResponse.text)
-			// Filter to ensure valid indices
-			relevantIndices = relevantIndices.filter(
-				(i) => Number.isInteger(i) && i >= 0 && i < documents.length,
-			)
-		} catch (parseError) {
-			console.warn(
-				'Failed to parse relevance response, using all documents:',
-				parseError,
-			)
-			relevantIndices = documents.map((_, i) => i)
+			try {
+				relevantIndices = JSON.parse(relevanceResponse.text)
+				// Filter to ensure valid indices
+				relevantIndices = relevantIndices.filter(
+					(i) => Number.isInteger(i) && i >= 0 && i < documents.length,
+				)
+			} catch (parseError) {
+				console.warn(
+					'Failed to parse relevance response, using all documents:',
+					parseError,
+				)
+				relevantIndices = documents.map((_, i) => i)
+			}
+
+			contextDocs = relevantIndices.map((index) => documents[index])
 		}
 
-		// Phase 2: Answer the question with relevant document content
-		const contextDocs = relevantIndices.map((index) => documents[index])
+		// Phase 2: Answer the question with relevant document content and/or page content
+		const contextPrompt = `You are a helpful AI assistant answering questions about the user's medical information.
 
-		const contextPrompt =
-			contextDocs.length > 0
-				? `You are a helpful AI assistant answering questions about the user's medical documents.
-
-Relevant document content:
+${contextDocs.length > 0 ? `Relevant document content:
 ${contextDocs
 	.map(
 		(
@@ -192,18 +200,16 @@ ${contextDocs
 		) => `Document ${i + 1}: ${doc.extractedData.title} (${doc.extractedData.type})
 Full content: ${doc.extractedData.content}`,
 	)
-	.join('\n\n')}
+	.join('\n\n')}` : ''}
 
-${chatHistory.length > 0 ? `Previous conversation:\n${chatHistory.map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n')}\n\n` : ''}
+${hasPageContent ? `${contextDocs.length > 0 ? '\n\n' : ''}Current page content from "${pageContent.title}" (${pageContent.url}):
+${pageContent.text}` : ''}
+
+${chatHistory.length > 0 ? `\n\nPrevious conversation:\n${chatHistory.map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n')}\n\n` : ''}
 
 User's question: ${userMessage}
 
-Please provide a helpful, accurate answer based on the document content. Be concise but thorough. If the question cannot be answered from the available documents, say so clearly.`
-				: `You are a helpful AI assistant answering questions about the user's medical documents.
-
-No documents were found to be relevant to the question: "${userMessage}"
-
-Please respond appropriately, explaining that you don't have relevant information from the uploaded documents.`
+Please provide a helpful, accurate answer based on the available information (documents and/or page content). Be concise but thorough. If the question cannot be answered from the available information, say so clearly.`
 
 		const answerResponse = await ai.models.generateContent({
 			model: 'gemini-3-flash-preview',

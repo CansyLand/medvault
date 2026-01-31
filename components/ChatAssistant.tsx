@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { ChatIcon } from './Icons'
 import { chatWithDocuments } from '../services/geminiService'
-import { UploadedDocument, ChatMessage } from '../types'
+import { extractPageContent } from '../services/pageContentService'
+import { UploadedDocument, ChatMessage, PageContent } from '../types'
 
 interface ChatAssistantProps {
 	documents: UploadedDocument[]
@@ -47,10 +48,19 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ documents }) => {
 		setIsLoading(true)
 
 		try {
+			// Always extract page content
+			let pageContent: PageContent | undefined
+			try {
+				pageContent = extractPageContent()
+			} catch (error) {
+				console.warn('Failed to extract page content:', error)
+			}
+
 			const response = await chatWithDocuments(
 				userMessage.content,
 				documents,
 				messages,
+				pageContent,
 			)
 
 			const assistantMessage: ChatMessage = {
@@ -150,10 +160,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ documents }) => {
 										}`}
 									>
 										{message.role === 'assistant' ? (
-											<div className="prose-chat text-sm">
-												<ReactMarkdown>
-													{message.content}
-												</ReactMarkdown>
+											<div className='prose-chat text-sm'>
+												<ReactMarkdown>{message.content}</ReactMarkdown>
 											</div>
 										) : (
 											message.content
@@ -190,8 +198,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ documents }) => {
 						<div className='flex gap-2'>
 							<input
 								ref={inputRef}
-								id="chat-input"
-								name="chat-input"
+								id='chat-input'
+								name='chat-input'
 								type='text'
 								value={inputValue}
 								onChange={(e) => setInputValue(e.target.value)}

@@ -66,6 +66,13 @@ export interface UploadedDocument {
 	}
 }
 
+export interface PageContent {
+	title: string
+	url: string
+	text: string
+	timestamp: Date
+}
+
 export interface ChatMessage {
 	id: string
 	role: 'user' | 'assistant'
