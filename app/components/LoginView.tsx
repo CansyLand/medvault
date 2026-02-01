@@ -5,16 +5,17 @@ import { ShieldIcon } from "./Icons";
 import type { EntityRole } from "../lib/api";
 
 type LoginViewProps = {
-  onLogin: (role: EntityRole) => void;
+  onLogin: (role: EntityRole, email: string) => void;
   isLoggingIn: boolean;
   supportsPasskeys: boolean;
 };
 
 export function LoginView({ onLogin, isLoggingIn, supportsPasskeys }: LoginViewProps) {
   const [selectedRole, setSelectedRole] = useState<EntityRole>("patient");
+  const [email, setEmail] = useState("");
 
   const handleLogin = () => {
-    onLogin(selectedRole);
+    onLogin(selectedRole, email);
   };
 
   return (
@@ -31,6 +32,20 @@ export function LoginView({ onLogin, isLoggingIn, supportsPasskeys }: LoginViewP
           <br />
           Your medical records never leave your device unencrypted.
         </p>
+
+        {/* Email Input */}
+        <div className="email-input-section">
+          <label htmlFor="email" className="email-label">Email Address</label>
+          <input
+            id="email"
+            type="email"
+            className="email-input"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isLoggingIn}
+          />
+        </div>
 
         {/* Role Selection */}
         <div className="role-selection">

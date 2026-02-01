@@ -237,6 +237,47 @@ body {
   color: var(--teal-deep);
 }
 
+/* Email Input Section */
+.email-input-section {
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.email-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.email-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-white);
+  color: var(--text-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.email-input:focus {
+  outline: none;
+  border-color: var(--teal-deep);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+.email-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--bg-secondary);
+}
+
+.email-input::placeholder {
+  color: var(--text-muted);
+}
+
 /* Role Badge in Sidebar */
 .role-badge {
   display: inline-block;
@@ -729,6 +770,21 @@ input, select {
   font-size: 0.95rem;
   font-family: inherit;
   transition: all 0.15s ease;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 input:focus, select:focus {

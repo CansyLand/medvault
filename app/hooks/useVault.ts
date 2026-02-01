@@ -286,15 +286,18 @@ export function useVault() {
     await del(SHARE_CODES_KEY);
   };
 
-  const registerNewPasskey = async (): Promise<string> => {
+  const registerNewPasskey = async (email: string): Promise<string> => {
     const userId = getLocal(USER_ID_KEY) ?? randomBase64Url(16);
     setLocal(USER_ID_KEY, userId);
+
+    const userEmail = email.trim() || "user@medvault.local";
+    const displayName = email.trim() ? email.split("@")[0] : "User";
 
     const registration = await startRegistration({
       optionsJSON: {
         challenge: randomBase64Url(),
         rp: { name: "MedVault", id: window.location.hostname },
-        user: { id: userId, name: "user@medvault.local", displayName: "User" },
+        user: { id: userId, name: userEmail, displayName },
         pubKeyCredParams: [
           { type: "public-key", alg: -7 },
           { type: "public-key", alg: -257 }
@@ -382,34 +385,29 @@ export function useVault() {
   };
 
   const loginMutation = useMutation({
-    mutationFn: async (role?: EntityRole) => {
-      const storedCredentialId = getLocal(CREDENTIAL_ID_KEY);
-
+    mutationFn: async ({ role, email }: { role?: EntityRole; email?: string }) => {
       let credentialId: string;
 
-      if (storedCredentialId) {
-        // User has registered before - authenticate with specific credential
+      // Try passkey discovery first - this allows user to pick any available passkey
+      // (supports multiple accounts on the same machine)
+      try {
         const auth = await startAuthentication({
           optionsJSON: {
             challenge: randomBase64Url(),
             timeout: 60000,
             userVerification: "required",
             rpId: window.location.hostname,
-            allowCredentials: [
-              {
-                id: storedCredentialId,
-                type: "public-key",
-                transports: ["internal", "hybrid"]
-              }
-            ]
+            // Empty allowCredentials enables passkey discovery - browser shows all available passkeys
+            allowCredentials: []
           }
         });
         credentialId = auth.id;
         setLocal(CREDENTIAL_ID_KEY, credentialId);
-      } else {
-        // First time user - store role for later use and register a new passkey
+      } catch (err) {
+        // No passkey found or user cancelled - register a new one
+        // This happens for first-time users
         pendingRoleRef.current = role || null;
-        credentialId = await registerNewPasskey();
+        credentialId = await registerNewPasskey(email || "");
       }
 
       await hydrateEntity(credentialId, true, role);
@@ -916,7 +914,7 @@ export function useVault() {
     restoreMutation.mutate();
   }, [signedIn, restoreMutation]);
 
-  const login = (role?: EntityRole) => loginMutation.mutateAsync(role);
+  const login = (role?: EntityRole, email?: string) => loginMutation.mutateAsync({ role, email });
 
   const logout = async () => {
     await clearSession();
