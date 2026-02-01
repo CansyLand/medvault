@@ -4,8 +4,10 @@ import {
   createEntity,
   getEntityIdForPasskey,
   getEntityRole,
+  getEntityPublicKey,
   linkPasskeyToEntity,
   setEntityRole,
+  setEntityPublicKey,
   type EntityRole
 } from "../../_lib/storage";
 
@@ -13,6 +15,7 @@ type InitRequest = {
   passkeyId?: string;
   createIfMissing?: boolean;
   role?: EntityRole;
+  publicKey?: string; // Base64-encoded public key for asymmetric encryption
 };
 
 export async function POST(request: Request) {
@@ -25,11 +28,12 @@ export async function POST(request: Request) {
   const existingEntityId = await getEntityIdForPasskey(passkeyId);
   if (existingEntityId) {
     const role = await getEntityRole(existingEntityId);
-    return NextResponse.json({ entityId: existingEntityId, created: false, role });
+    const publicKey = await getEntityPublicKey(existingEntityId);
+    return NextResponse.json({ entityId: existingEntityId, created: false, role, publicKey });
   }
 
   if (body.createIfMissing === false) {
-    return NextResponse.json({ entityId: null, created: false, role: null });
+    return NextResponse.json({ entityId: null, created: false, role: null, publicKey: null });
   }
 
   const entityId = await createEntity();
@@ -39,5 +43,10 @@ export async function POST(request: Request) {
   const role = body.role || "patient"; // Default to patient if not specified
   await setEntityRole(entityId, role);
   
-  return NextResponse.json({ entityId, created: true, role });
+  // Store public key if provided (for asymmetric encryption in transfers)
+  if (body.publicKey) {
+    await setEntityPublicKey(entityId, body.publicKey);
+  }
+  
+  return NextResponse.json({ entityId, created: true, role, publicKey: body.publicKey || null });
 }

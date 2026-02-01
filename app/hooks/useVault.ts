@@ -20,8 +20,13 @@ import {
   wrapPrivateKey,
   encryptJson,
   decryptJson,
+  encryptForRecipient,
+  publicKeyToBase64,
+  publicKeyFromBase64,
+  getPublicKeyFromPrivate,
   type SealedInvitePayload,
-  type EncryptedPayload
+  type EncryptedPayload,
+  type SealedBoxPayload
 } from "../lib/crypto";
 import {
   clearSession,
@@ -39,6 +44,8 @@ import {
   getShares,
   transferToPatient,
   savePublicProfile,
+  getEntityPublicKey,
+  updateMyPublicKey,
   type SharesResponse,
   type EntityRole
 } from "../lib/api";
@@ -59,7 +66,7 @@ const ENTITY_KEY_PREFIX = "entityKey:";
 const SHARE_CODES_KEY = "shareCodes";
 
 type WrappedKeyRecord = { wrapped: string; nonce: string };
-type ShareCodesRecord = Record<string, string>; // sourceEntityId -> shareCode
+type ShareCodesRecord = Record<string, string>; // "sourceEntityId:propertyName" -> shareCode
 
 function randomBase64Url(size = 32): string {
   const bytes = new Uint8Array(size);
@@ -102,7 +109,7 @@ export function useVault() {
   const [shareCode, setShareCode] = useState("");
   const [generatedShare, setGeneratedShare] = useState<{ code: string; propertyName: string; expiresAt: number } | null>(null);
   const [shares, setShares] = useState<SharesResponse>({ outgoing: [], incoming: [] });
-  const [pendingShareCodes, setPendingShareCodes] = useState<Map<string, string>>(new Map()); // sourceEntityId -> code
+  const [pendingShareCodes, setPendingShareCodes] = useState<Map<string, string>>(new Map()); // "sourceEntityId:propertyName" -> code
 
   // Derive patient list from incoming shares (for doctors)
   const patientList = useMemo(() => {
@@ -241,20 +248,35 @@ export function useVault() {
   };
 
   // Share codes persistence for session restore
+  // Key format: "sourceEntityId:propertyName" to support multiple shares from same entity
   const loadShareCodes = async (): Promise<ShareCodesRecord> => {
     const value = await get(SHARE_CODES_KEY);
     return (value as ShareCodesRecord | undefined) ?? {};
   };
 
-  const storeShareCode = async (sourceEntityId: string, code: string) => {
+  const makeShareCodeKey = (sourceEntityId: string, propertyName: string) => 
+    `${sourceEntityId}:${propertyName}`;
+
+  const storeShareCode = async (sourceEntityId: string, propertyName: string, code: string) => {
     const existing = await loadShareCodes();
-    existing[sourceEntityId] = code;
+    existing[makeShareCodeKey(sourceEntityId, propertyName)] = code;
     await set(SHARE_CODES_KEY, existing);
   };
 
-  const removeShareCode = async (sourceEntityId: string) => {
+  const removeShareCode = async (sourceEntityId: string, propertyName: string) => {
     const existing = await loadShareCodes();
-    delete existing[sourceEntityId];
+    delete existing[makeShareCodeKey(sourceEntityId, propertyName)];
+    await set(SHARE_CODES_KEY, existing);
+  };
+
+  const removeAllShareCodesForEntity = async (sourceEntityId: string) => {
+    const existing = await loadShareCodes();
+    const prefix = `${sourceEntityId}:`;
+    for (const key of Object.keys(existing)) {
+      if (key.startsWith(prefix)) {
+        delete existing[key];
+      }
+    }
     await set(SHARE_CODES_KEY, existing);
   };
 
@@ -286,30 +308,66 @@ export function useVault() {
   };
 
   const hydrateEntity = async (passkeyId: string, allowCreate: boolean, role?: EntityRole, skipSession = false) => {
-    // Pass role for new entity creation
-    const lookup = allowCreate 
-      ? await initEntity(passkeyId, role || pendingRoleRef.current || undefined) 
-      : await initEntityIfExists(passkeyId);
+    let lookup;
+    
+    if (allowCreate) {
+      // For new entity creation, we need to generate the key pair first
+      // so we can send the public key to the server
+      const keyPair = await generateEntityKeyPair();
+      const publicKeyBase64 = publicKeyToBase64(keyPair.publicKey);
+      
+      lookup = await initEntity(passkeyId, role || pendingRoleRef.current || undefined, publicKeyBase64);
+      
+      if (!lookup.entityId) throw new Error("No entity found.");
+      
+      if (lookup.created) {
+        // Store the wrapped key locally
+        const wrapped = await wrapPrivateKey(keyPair.privateKey);
+        await storeWrappedKey(lookup.entityId, wrapped);
+        setIsNewEntity(true);
+        
+        // Create session and set state
+        if (!skipSession) {
+          await createSession(passkeyId);
+        }
+        
+        setEntityId(lookup.entityId);
+        setEntityRole(lookup.role);
+        setEntityPrivateKey(keyPair.privateKey);
+        setSignedIn(true);
+        pendingRoleRef.current = null;
+        return;
+      }
+    } else {
+      lookup = await initEntityIfExists(passkeyId);
+    }
+    
     if (!lookup.entityId) throw new Error("No entity found.");
 
+    // Entity exists, load the stored key
     let key: Uint8Array | null = null;
     const stored = await loadWrappedKey(lookup.entityId);
     if (stored) {
       key = await unwrapPrivateKey(stored.wrapped, stored.nonce);
     }
 
-    if (!key && lookup.created) {
-      const keyPair = await generateEntityKeyPair();
-      key = keyPair.privateKey;
-      const wrapped = await wrapPrivateKey(key);
-      await storeWrappedKey(lookup.entityId, wrapped);
-      setIsNewEntity(true);
-    }
-
     // Create session BEFORE setting signedIn to prevent race condition
     // where shares/requests are fetched before session cookie is set
     if (!skipSession) {
       await createSession(passkeyId);
+    }
+
+    // If the entity doesn't have a public key stored (legacy account), upload it now
+    // This ensures existing accounts can receive transferred records
+    if (key && !lookup.publicKey) {
+      try {
+        const publicKey = await getPublicKeyFromPrivate(key);
+        const publicKeyBase64 = publicKeyToBase64(publicKey);
+        await updateMyPublicKey(publicKeyBase64);
+        console.log("[Vault] Uploaded missing public key for existing entity");
+      } catch (err) {
+        console.error("[Vault] Failed to upload public key:", err);
+      }
     }
 
     setEntityId(lookup.entityId);
@@ -451,10 +509,11 @@ export function useVault() {
   const consumeShareMutation = useMutation({
     mutationFn: async (code: string) => {
       const result = await consumeShare(code);
-      // Persist the share code for session restore
-      await storeShareCode(result.sourceEntityId, code);
-      // Also update in-memory map
-      setPendingShareCodes(prev => new Map(prev).set(result.sourceEntityId, code));
+      // Persist the share code for session restore (keyed by sourceEntityId:propertyName)
+      await storeShareCode(result.sourceEntityId, result.propertyName, code);
+      // Also update in-memory map with composite key
+      const shareKey = makeShareCodeKey(result.sourceEntityId, result.propertyName);
+      setPendingShareCodes(prev => new Map(prev).set(shareKey, code));
       // Register the key in the event stream
       await eventStream.registerSharedKey(
         result.sourceEntityId,
@@ -492,10 +551,11 @@ export function useVault() {
         // If revoking incoming share, unregister the key and remove persisted code
         if (params.sourceEntityId) {
           eventStream.unregisterSharedKey(params.sourceEntityId);
-          await removeShareCode(params.sourceEntityId);
+          await removeShareCode(params.sourceEntityId, params.propertyName);
+          const shareKey = makeShareCodeKey(params.sourceEntityId, params.propertyName);
           setPendingShareCodes(prev => {
             const updated = new Map(prev);
-            updated.delete(params.sourceEntityId!);
+            updated.delete(shareKey);
             return updated;
           });
         }
@@ -530,8 +590,15 @@ export function useVault() {
 
       const { targetEntityId, propertyNames } = params;
       
-      // Decrypt each property and re-encrypt for transfer
-      const encryptedPayloads: Record<string, EncryptedPayload> = {};
+      // Fetch the patient's public key for asymmetric encryption
+      const patientPublicKeyBase64 = await getEntityPublicKey(targetEntityId);
+      if (!patientPublicKeyBase64) {
+        throw new Error("Patient's public key not found. They may need to log in again.");
+      }
+      const patientPublicKey = await publicKeyFromBase64(patientPublicKeyBase64);
+      
+      // Encrypt each property using the patient's public key (asymmetric encryption)
+      const encryptedPayloads: Record<string, SealedBoxPayload> = {};
       const properties = eventStream.state?.properties ?? {};
       
       for (const propertyName of propertyNames) {
@@ -541,13 +608,13 @@ export function useVault() {
           continue;
         }
         
-        // Create encrypted payload for the patient's vault
-        // We re-encrypt the PropertySet event data with the patient as the target
+        // Create encrypted payload for the patient's vault using their public key
+        // This allows only the patient (with their private key) to decrypt
         const eventData = {
           type: "PropertySet",
           data: { key: propertyName, value }
         };
-        const encrypted = await encryptJson(entityPrivateKey, eventData);
+        const encrypted = await encryptForRecipient(eventData, patientPublicKey);
         encryptedPayloads[propertyName] = encrypted;
       }
 
@@ -590,8 +657,19 @@ export function useVault() {
       }
 
       // Register the shared key so we can read from patient
-      if (result.shareCode) {
-        setPendingShareCodes(prev => new Map(prev).set(targetEntityId, shareCode));
+      // Store share code for each transferred property (patient becomes source after transfer)
+      if (result.shareCode && result.transferred.length > 0) {
+        for (const propName of result.transferred) {
+          await storeShareCode(targetEntityId, propName, shareCode);
+        }
+        setPendingShareCodes(prev => {
+          const updated = new Map(prev);
+          for (const propName of result.transferred) {
+            const shareKey = makeShareCodeKey(targetEntityId, propName);
+            updated.set(shareKey, shareCode);
+          }
+          return updated;
+        });
       }
 
       // Refresh shares list
@@ -688,16 +766,19 @@ export function useVault() {
     const registerIncomingShareKeys = async () => {
       if (shares.incoming.length === 0) return;
       
-      // Load persisted share codes
+      // Load persisted share codes (keyed by sourceEntityId:propertyName)
       const persistedCodes = await loadShareCodes();
       
       for (const share of shares.incoming) {
+        // Use composite key: sourceEntityId:propertyName
+        const shareKey = makeShareCodeKey(share.sourceEntityId, share.propertyName);
+        
         // Check in-memory first, then persisted
-        let code = pendingShareCodes.get(share.sourceEntityId);
-        if (!code && persistedCodes[share.sourceEntityId]) {
-          code = persistedCodes[share.sourceEntityId];
+        let code = pendingShareCodes.get(shareKey);
+        if (!code && persistedCodes[shareKey]) {
+          code = persistedCodes[shareKey];
           // Update in-memory map
-          setPendingShareCodes(prev => new Map(prev).set(share.sourceEntityId, code!));
+          setPendingShareCodes(prev => new Map(prev).set(shareKey, code!));
         }
         
         if (code && share.keyWrapped) {
@@ -708,7 +789,7 @@ export function useVault() {
               code
             );
           } catch (err) {
-            console.error(`Failed to register shared key for ${share.sourceEntityId}:`, err);
+            console.error(`Failed to register shared key for ${share.sourceEntityId} (${share.propertyName}):`, err);
           }
         }
       }

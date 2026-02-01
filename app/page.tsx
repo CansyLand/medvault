@@ -238,6 +238,7 @@ export default function HomePage() {
                 shares={vault.shares}
                 sharedData={vault.sharedData}
                 onRevokeShare={(params) => vault.removeShare(params)}
+                onRemoveIncomingShare={(params) => vault.removeShare(params)}
                 userDisplayName={vault.userProfile ? getDisplayName(vault.userProfile) : undefined}
                 userRole={vault.entityRole}
               />
@@ -259,6 +260,7 @@ export default function HomePage() {
               entityRole={vault.entityRole}
               onTransferRecords={vault.transferRecords}
               isTransferring={vault.isTransferring}
+              allPatients={vault.allPatients}
               // Data requests (patient only)
               dataRequests={dataRequests.incomingRequests}
               pendingRequestsCount={dataRequests.pendingCount}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import type { SharesResponse, EntityRole, DataRequest } from "../lib/api";
+import type { SharesResponse, EntityRole, DataRequest, PublicProfile } from "../lib/api";
+import { getPublicProfiles } from "../lib/api";
 import type { SharedPropertyValue } from "../hooks/useEventStream";
 import { CopyableEntityId } from "./CopyableEntityId";
 import { ShareIcon, ShieldIcon, CheckIcon, HeartIcon } from "./Icons";
@@ -13,7 +14,7 @@ import {
 } from "../types/medical";
 import { AccessRequestsPanel } from "./AccessRequestsPanel";
 
-type SharingTab = "share" | "receive" | "requests";
+type SharingTab = "share" | "receive" | "requests" | "transfer";
 
 interface EnhancedSharingSectionProps {
   properties: Record<string, string>;
@@ -30,6 +31,8 @@ interface EnhancedSharingSectionProps {
   entityRole?: EntityRole | null;
   onTransferRecords?: (targetEntityId: string, propertyNames: string[]) => Promise<unknown>;
   isTransferring?: boolean;
+  // Connected patients (doctor only)
+  allPatients?: Array<{ entityId: string; recordCount: number; registered: boolean }>;
   // Data requests (patient only)
   dataRequests?: DataRequest[];
   pendingRequestsCount?: number;
@@ -53,6 +56,7 @@ export function EnhancedSharingSection({
   entityRole,
   onTransferRecords,
   isTransferring,
+  allPatients = [],
   dataRequests = [],
   pendingRequestsCount = 0,
   onFulfillRequest,
@@ -60,8 +64,10 @@ export function EnhancedSharingSection({
   isFulfillingRequest,
   isDecliningRequest,
 }: EnhancedSharingSectionProps) {
-  // Tab navigation
-  const [activeTab, setActiveTab] = useState<SharingTab>("share");
+  // Tab navigation - doctors default to transfer, patients/others to share
+  const [activeTab, setActiveTab] = useState<SharingTab>(
+    entityRole === "doctor" ? "transfer" : "share"
+  );
   
   const [selectedRecords, setSelectedRecords] = useState<string[]>([]); // For sharing
   const [selectedTransferRecords, setSelectedTransferRecords] = useState<string[]>([]); // For transfers
@@ -81,9 +87,27 @@ export function EnhancedSharingSection({
   // Transfer state (doctor only)
   const [patientEntityId, setPatientEntityId] = useState("");
   const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [patientProfiles, setPatientProfiles] = useState<Record<string, PublicProfile>>({});
+  const [patientSelectionMode, setPatientSelectionMode] = useState<"select" | "manual">("select");
   
   const isDoctor = entityRole === "doctor";
   const isPatient = entityRole === "patient";
+  
+  // Get patient IDs for profile fetching
+  const patientIds = useMemo(() => allPatients.map(p => p.entityId), [allPatients]);
+  
+  // Fetch patient profiles for display names
+  useEffect(() => {
+    if (patientIds.length === 0) return;
+    
+    getPublicProfiles(patientIds)
+      .then((profiles) => {
+        setPatientProfiles(profiles);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch patient profiles:", err);
+      });
+  }, [patientIds]);
   
   // Update countdown timer for share code expiration
   useEffect(() => {
@@ -314,6 +338,20 @@ export function EnhancedSharingSection({
 
       {/* Tab Navigation */}
       <div className="share-tabs">
+        {isDoctor && (
+          <button
+            className={`share-tab ${activeTab === "transfer" ? "active" : ""}`}
+            onClick={() => setActiveTab("transfer")}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 1l4 4-4 4" />
+              <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+              <path d="M7 23l-4-4 4-4" />
+              <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            </svg>
+            Transfer to Patient
+          </button>
+        )}
         <button
           className={`share-tab ${activeTab === "share" ? "active" : ""}`}
           onClick={() => setActiveTab("share")}
@@ -346,7 +384,7 @@ export function EnhancedSharingSection({
       </div>
 
       {/* Doctor: Transfer Records to Patient */}
-      {isDoctor && activeTab === "share" && (
+      {activeTab === "transfer" && (
         <div className="subsection">
           <h3>Transfer Records to Patient</h3>
           <p className="subsection-desc">
@@ -428,26 +466,67 @@ export function EnhancedSharingSection({
                 </div>
               </div>
 
-              {/* Patient Entity ID Input */}
+              {/* Patient Selection */}
               <div style={{ marginBottom: "1rem" }}>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 500, marginBottom: "0.5rem" }}>
-                  Patient Entity ID
+                  Select Patient
                 </label>
-                <input
-                  type="text"
-                  placeholder="Enter the patient's entity ID (e.g., abc123-def456-...)"
-                  value={patientEntityId}
-                  onChange={(e) => setPatientEntityId(e.target.value)}
-                  disabled={disabled || isTransferring}
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                />
+                {allPatients.length > 0 ? (
+                  <>
+                    <select
+                      value={patientSelectionMode === "manual" ? "__manual__" : patientEntityId}
+                      onChange={(e) => {
+                        if (e.target.value === "__manual__") {
+                          setPatientSelectionMode("manual");
+                          setPatientEntityId("");
+                        } else {
+                          setPatientSelectionMode("select");
+                          setPatientEntityId(e.target.value);
+                        }
+                      }}
+                      disabled={disabled || isTransferring}
+                      style={{ marginBottom: patientSelectionMode === "manual" ? "0.75rem" : 0 }}
+                    >
+                      <option value="">Select a patient...</option>
+                      {allPatients.map((patient) => {
+                        const profile = patientProfiles[patient.entityId];
+                        const displayName = profile?.displayName || `Patient ${patient.entityId.slice(0, 8)}...`;
+                        return (
+                          <option key={patient.entityId} value={patient.entityId}>
+                            {displayName}
+                          </option>
+                        );
+                      })}
+                      <option value="__manual__">Other patient (enter ID manually)</option>
+                    </select>
+                    {patientSelectionMode === "manual" && (
+                      <input
+                        type="text"
+                        placeholder="Enter the patient's entity ID (e.g., abc123-def456-...)"
+                        value={patientEntityId}
+                        onChange={(e) => setPatientEntityId(e.target.value)}
+                        disabled={disabled || isTransferring}
+                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="Enter the patient's entity ID (e.g., abc123-def456-...)"
+                    value={patientEntityId}
+                    onChange={(e) => setPatientEntityId(e.target.value)}
+                    disabled={disabled || isTransferring}
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  />
+                )}
               </div>
 
               {/* Transfer Button */}
               <button
                 onClick={handleTransfer}
                 disabled={disabled || selectedTransferRecords.length === 0 || !patientEntityId.trim() || isTransferring}
-                style={{ width: "100%", background: "var(--lavender)", color: "var(--lavender-dark)" }}
+                style={{ width: "100%" }}
               >
                 {isTransferring
                   ? "Transferring..."
@@ -531,11 +610,11 @@ export function EnhancedSharingSection({
             </div>
           ) : (
             <>
-              <h3>{isPatient ? "Share Your Medical Records" : "Share Medical Records"}</h3>
+              <h3>{isPatient ? "Share Your Medical Records" : "Share with Other Providers"}</h3>
               <p className="subsection-desc">
                 {isPatient 
                   ? "Share your records with healthcare providers. You control who has access and can revoke at any time."
-                  : "Select which records to share. Each share code is time-limited and can only be used once."}
+                  : "Generate a share code to grant another healthcare provider temporary access to selected records."}
               </p>
 
               {records.length === 0 ? (
@@ -695,8 +774,8 @@ export function EnhancedSharingSection({
         />
       )}
 
-      {/* Incoming Shares - Collapsible */}
-      {shares.incoming.length > 0 && (
+      {/* Incoming Shares - Collapsible (patients only - doctors see this in Access Network) */}
+      {shares.incoming.length > 0 && !isDoctor && (
         <div className="collapsible-section">
           <button 
             className="collapsible-header"

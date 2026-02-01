@@ -1270,6 +1270,37 @@ button.danger:hover:not(:disabled) {
   color: var(--text-secondary);
 }
 
+/* Access Section (for table view with multiple sections) */
+.access-section {
+  margin-bottom: 1.5rem;
+}
+
+.access-section:last-child {
+  margin-bottom: 0;
+}
+
+.access-section-header {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.empty-state-inline {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+}
+
+.empty-state-inline p {
+  margin: 0;
+}
+
 @keyframes expandIn {
   from {
     opacity: 0;
@@ -2204,6 +2235,12 @@ button.danger:hover:not(:disabled) {
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.add-patient-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .add-patient-btn:hover {

@@ -28,10 +28,11 @@ async function withLock<T>(entityId: string, fn: () => Promise<T>): Promise<T> {
 }
 
 // Encrypted payload structure (server only sees this)
+// nonce is optional because asymmetric encryption (crypto_box_seal) doesn't use an external nonce
 export type EncryptedPayload = {
   version: number;
   alg: string;
-  nonce: string;
+  nonce?: string;
   ciphertext: string;
 };
 

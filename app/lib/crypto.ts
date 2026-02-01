@@ -70,6 +70,61 @@ export async function generateEntityKeyPair(): Promise<EntityKeyPair> {
   return { publicKey: keyPair.publicKey, privateKey: keyPair.privateKey };
 }
 
+// Get public key from private key (for asymmetric encryption)
+export async function getPublicKeyFromPrivate(privateKey: Uint8Array): Promise<Uint8Array> {
+  const sodiumLib = await getSodium();
+  return sodiumLib.crypto_scalarmult_base(privateKey);
+}
+
+// Asymmetric encryption: encrypt data for a recipient's public key
+// Only the holder of the corresponding private key can decrypt
+export type SealedBoxPayload = {
+  version: number;
+  alg: "X25519-XSALSA20-POLY1305";
+  ciphertext: string;
+};
+
+export async function encryptForRecipient(
+  data: unknown,
+  recipientPublicKey: Uint8Array
+): Promise<SealedBoxPayload> {
+  const sodiumLib = await getSodium();
+  const plaintext = textEncoder.encode(JSON.stringify(data));
+  const ciphertext = sodiumLib.crypto_box_seal(plaintext, recipientPublicKey);
+  return {
+    version: 1,
+    alg: "X25519-XSALSA20-POLY1305",
+    ciphertext: toBase64(ciphertext),
+  };
+}
+
+// Asymmetric decryption: decrypt data sealed to our public key
+export async function decryptFromSender<T>(
+  payload: SealedBoxPayload,
+  recipientPublicKey: Uint8Array,
+  recipientPrivateKey: Uint8Array
+): Promise<T> {
+  const sodiumLib = await getSodium();
+  const ciphertext = fromBase64(payload.ciphertext);
+  const plaintext = sodiumLib.crypto_box_seal_open(
+    ciphertext,
+    recipientPublicKey,
+    recipientPrivateKey
+  );
+  return JSON.parse(textDecoder.decode(plaintext)) as T;
+}
+
+// Convert public key to base64 for storage/transmission
+export function publicKeyToBase64(publicKey: Uint8Array): string {
+  return toBase64(publicKey);
+}
+
+// Convert base64 back to public key
+export async function publicKeyFromBase64(base64: string): Promise<Uint8Array> {
+  await getSodium(); // Ensure sodium is ready
+  return fromBase64(base64);
+}
+
 export async function wrapPrivateKey(
   rawPrivateKey: Uint8Array
 ): Promise<{ wrapped: string; nonce: string }> {

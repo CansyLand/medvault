@@ -315,6 +315,25 @@ export async function setEntityRole(entityId: string, role: EntityRole): Promise
 }
 
 // =====================
+// Entity Public Key Storage
+// =====================
+
+function getEntityPublicKeyPath(entityId: string): string {
+  return path.join(entitiesRoot, entityId, "public_key.json");
+}
+
+export async function getEntityPublicKey(entityId: string): Promise<string | null> {
+  const filePath = getEntityPublicKeyPath(entityId);
+  const data = await readJsonFile<{ publicKey: string } | null>(filePath, null);
+  return data?.publicKey ?? null;
+}
+
+export async function setEntityPublicKey(entityId: string, publicKey: string): Promise<void> {
+  await ensureEntityDir(entityId);
+  await writeJsonFile(getEntityPublicKeyPath(entityId), { publicKey });
+}
+
+// =====================
 // Transfer Records
 // =====================
 

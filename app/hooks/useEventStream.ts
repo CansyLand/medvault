@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { encryptJson, decryptJson, openSharedKey, type EncryptedPayload, type SealedInvitePayload } from "../lib/crypto";
+import { 
+  encryptJson, 
+  decryptJson, 
+  openSharedKey, 
+  decryptFromSender,
+  getPublicKeyFromPrivate,
+  type EncryptedPayload, 
+  type SealedInvitePayload,
+  type SealedBoxPayload 
+} from "../lib/crypto";
 
 // Client-side event types
 export type EventType = 
@@ -115,10 +124,11 @@ export type EntityEvent = {
 };
 
 // Encrypted event (what server stores)
+// payload can be symmetric (EncryptedPayload) or asymmetric (SealedBoxPayload)
 export type EncryptedEvent = {
   id: string;
   timestamp: string;
-  payload: EncryptedPayload;
+  payload: EncryptedPayload | SealedBoxPayload;
 };
 
 // Shared event envelope from other entities
@@ -195,7 +205,7 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
     entityKeyRef.current = entityKey;
   }, [entityKey]);
 
-  // Decrypt an event using a shared key
+  // Decrypt an event using a shared key (shared events always use symmetric encryption)
   const decryptSharedEvent = useCallback(async (
     sourceEntityId: string,
     encrypted: EncryptedEvent
@@ -206,7 +216,8 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
       return null;
     }
     try {
-      const content = await decryptJson<DecryptedEventContent>(key, encrypted.payload);
+      // Shared events always use symmetric encryption with the source entity's key
+      const content = await decryptJson<DecryptedEventContent>(key, encrypted.payload as EncryptedPayload);
       return {
         id: encrypted.id,
         timestamp: encrypted.timestamp,
@@ -284,11 +295,29 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
     setSharedData(prev => prev.filter(s => s.sourceEntityId !== sourceEntityId));
   }, []);
 
-  // Decrypt a single encrypted event
+  // Decrypt a single encrypted event (handles both symmetric and asymmetric encryption)
   const decryptEvent = useCallback(async (encrypted: EncryptedEvent): Promise<EntityEvent | null> => {
     if (!entityKeyRef.current) return null;
     try {
-      const content = await decryptJson<DecryptedEventContent>(entityKeyRef.current, encrypted.payload);
+      let content: DecryptedEventContent;
+      
+      // Check the algorithm to determine decryption method
+      if (encrypted.payload.alg === "X25519-XSALSA20-POLY1305") {
+        // Asymmetric encryption (from transfers) - need both public and private key
+        const publicKey = await getPublicKeyFromPrivate(entityKeyRef.current);
+        content = await decryptFromSender<DecryptedEventContent>(
+          encrypted.payload as SealedBoxPayload,
+          publicKey,
+          entityKeyRef.current
+        );
+      } else {
+        // Symmetric encryption (normal events)
+        content = await decryptJson<DecryptedEventContent>(
+          entityKeyRef.current, 
+          encrypted.payload as EncryptedPayload
+        );
+      }
+      
       return {
         id: encrypted.id,
         timestamp: encrypted.timestamp,

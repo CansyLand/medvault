@@ -254,6 +254,7 @@ interface AccessNetworkFlowProps {
   sharedData?: SharedPropertyValue[];
   onEdgeClick?: (edge: Edge) => void;
   onRevokeShare?: (params: { targetEntityId: string; propertyName: string }) => void;
+  onRemoveIncomingShare?: (params: { sourceEntityId: string; propertyName: string }) => void;
   className?: string;
   userDisplayName?: string;
   userRole?: EntityRole | null;
@@ -264,6 +265,7 @@ export function AccessNetworkFlow({
   sharedData,
   onEdgeClick,
   onRevokeShare,
+  onRemoveIncomingShare,
   className = "",
   userDisplayName,
   userRole,
@@ -536,6 +538,21 @@ export function AccessNetworkFlow({
   // Tab state for switching between graph and table views
   const [activeTab, setActiveTab] = useState<AccessNetworkTab>('graph');
 
+  // Group incoming shares by source entity for the "Data Shared With You" section
+  const incomingSharesByEntity = useMemo(() => {
+    if (!shares?.incoming) return [];
+    
+    const grouped: Record<string, typeof shares.incoming> = {};
+    shares.incoming.forEach((share) => {
+      if (!grouped[share.sourceEntityId]) {
+        grouped[share.sourceEntityId] = [];
+      }
+      grouped[share.sourceEntityId].push(share);
+    });
+    
+    return Object.entries(grouped);
+  }, [shares?.incoming]);
+
   // Render the graph view
   const renderGraphView = () => (
     <div
@@ -573,60 +590,119 @@ export function AccessNetworkFlow({
   // Render the table view
   const renderTableView = () => (
     <div className="access-table-container">
-      {outgoingSharesByEntity.length > 0 ? (
-        <div className="access-list">
-          {outgoingSharesByEntity.map(([entityId, entityShares]) => {
-            const entityName = getEntityDisplayName(entityId);
-            const entitySubtitle = getEntitySubtitle(entityId);
-            
-            return (
-              <div key={entityId} className="access-list-item">
-                <div className="access-list-header">
-                  <div className="entity-info">
-                    <span className="entity-icon">👨‍⚕️</span>
-                    <div className="entity-details">
-                      <span className="entity-name" title={`Entity ID: ${entityId}`}>
-                        {entityName}
-                      </span>
-                      {entitySubtitle && (
-                        <span className="entity-subtitle">{entitySubtitle}</span>
-                      )}
+      {/* Section 1: You Shared With Others */}
+      <div className="access-section">
+        <h4 className="access-section-header">You Shared With Others</h4>
+        {outgoingSharesByEntity.length > 0 ? (
+          <div className="access-list">
+            {outgoingSharesByEntity.map(([entityId, entityShares]) => {
+              const entityName = getEntityDisplayName(entityId);
+              const entitySubtitle = getEntitySubtitle(entityId);
+              
+              return (
+                <div key={entityId} className="access-list-item">
+                  <div className="access-list-header">
+                    <div className="entity-info">
+                      <span className="entity-icon">👨‍⚕️</span>
+                      <div className="entity-details">
+                        <span className="entity-name" title={`Entity ID: ${entityId}`}>
+                          {entityName}
+                        </span>
+                        {entitySubtitle && (
+                          <span className="entity-subtitle">{entitySubtitle}</span>
+                        )}
+                      </div>
                     </div>
+                    <span className="share-count">
+                      {entityShares.length} record{entityShares.length !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                  <span className="share-count">
-                    {entityShares.length} record{entityShares.length !== 1 ? "s" : ""}
-                  </span>
+                  
+                  <div className="shared-records">
+                    {entityShares.map((share) => (
+                      <div key={share.propertyName} className="shared-record">
+                        <span className="record-name">{getRecordTitle(share.propertyName)}</span>
+                        {onRevokeShare && (
+                          <button
+                            className="small danger"
+                            onClick={() => onRevokeShare({ 
+                              targetEntityId: share.targetEntityId, 
+                              propertyName: share.propertyName 
+                            })}
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                
-                <div className="shared-records">
-                  {entityShares.map((share) => (
-                    <div key={share.propertyName} className="shared-record">
-                      <span className="record-name">{getRecordTitle(share.propertyName)}</span>
-                      {onRevokeShare && (
-                        <button
-                          className="small danger"
-                          onClick={() => onRevokeShare({ 
-                            targetEntityId: share.targetEntityId, 
-                            propertyName: share.propertyName 
-                          })}
-                        >
-                          Revoke
-                        </button>
-                      )}
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state-inline">
+            <p>No records shared with others yet</p>
+          </div>
+        )}
+      </div>
+
+      {/* Section 2: Data Shared With You */}
+      <div className="access-section">
+        <h4 className="access-section-header">Data Shared With You</h4>
+        {incomingSharesByEntity.length > 0 ? (
+          <div className="access-list">
+            {incomingSharesByEntity.map(([entityId, entityShares]) => {
+              const entityName = getEntityDisplayName(entityId);
+              const entitySubtitle = getEntitySubtitle(entityId);
+              
+              return (
+                <div key={entityId} className="access-list-item">
+                  <div className="access-list-header">
+                    <div className="entity-info">
+                      <span className="entity-icon">👨‍⚕️</span>
+                      <div className="entity-details">
+                        <span className="entity-name" title={`Entity ID: ${entityId}`}>
+                          {entityName}
+                        </span>
+                        {entitySubtitle && (
+                          <span className="entity-subtitle">{entitySubtitle}</span>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                    <span className="share-count">
+                      {entityShares.length} record{entityShares.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  
+                  <div className="shared-records">
+                    {entityShares.map((share) => (
+                      <div key={share.propertyName} className="shared-record">
+                        <span className="record-name">{getRecordTitle(share.propertyName)}</span>
+                        {onRemoveIncomingShare && (
+                          <button
+                            className="small danger"
+                            onClick={() => onRemoveIncomingShare({ 
+                              sourceEntityId: share.sourceEntityId, 
+                              propertyName: share.propertyName 
+                            })}
+                          >
+                            Unlink
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="empty-state">
-          <span className="empty-icon">🔐</span>
-          <p>No shared records</p>
-          <span className="empty-hint">Records you share will appear here</span>
-        </div>
-      )}
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state-inline">
+            <p>No data has been shared with you yet</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 

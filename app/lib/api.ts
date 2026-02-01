@@ -4,6 +4,7 @@ export type InitResponse = {
   entityId: string | null;
   created: boolean;
   role: EntityRole | null;
+  publicKey: string | null; // Base64-encoded public key for asymmetric encryption
 };
 
 export type InviteConsumeResponse = {
@@ -25,11 +26,11 @@ export async function fetchJson<T>(
   return (await response.json()) as T;
 }
 
-export async function initEntity(passkeyId: string, role?: EntityRole): Promise<InitResponse> {
+export async function initEntity(passkeyId: string, role?: EntityRole, publicKey?: string): Promise<InitResponse> {
   return fetchJson<InitResponse>("/api/entities/init", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ passkeyId, createIfMissing: true, role })
+    body: JSON.stringify({ passkeyId, createIfMissing: true, role, publicKey })
   });
 }
 
@@ -168,6 +169,19 @@ export async function transferToPatient(
 export async function getEntityRole(entityId: string): Promise<EntityRole | null> {
   const response = await fetchJson<{ role: EntityRole | null }>(`/api/entities/role?entityId=${entityId}`);
   return response.role;
+}
+
+export async function getEntityPublicKey(entityId: string): Promise<string | null> {
+  const response = await fetchJson<{ publicKey: string | null }>(`/api/entities/public-key?entityId=${entityId}`);
+  return response.publicKey;
+}
+
+export async function updateMyPublicKey(publicKey: string): Promise<void> {
+  await fetchJson("/api/entities/public-key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ publicKey })
+  });
 }
 
 // Profile types
