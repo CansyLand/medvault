@@ -1,74 +1,111 @@
 # MedVault - Personal Health Data Vault
 
-A secure, end-to-end encrypted personal health data vault built with Next.js, Socket.IO, and libsodium. Based on TrueTrace's zero-knowledge architecture with medical-focused features.
+A personal health data vault that puts you in control of your medical records. Upload documents, manage access requests, and visualize who has access to your data.
 
-## Features
+> **Note:** This project is in active development. The current version is a functional demo with AI-powered features. Full encryption and real-time sync are coming soon.
+
+## Current Features
+
+- **AI Document Extraction** - Upload PDFs and let Gemini AI extract structured medical data, summaries, and key fields
+- **Access Request Management** - Review, approve, or deny data requests from healthcare providers with granular control over which records to share
+- **Access Network Visualization** - Interactive graph showing who has access to your data and what they can see
+- **AI Chat Assistant** - Ask questions about your uploaded documents using natural language
+- **Webhook Integration** - Approval notifications sent to external systems for workflow automation
+
+## Coming Soon
 
 - **Passkey Authentication** - Passwordless login via WebAuthn (Touch ID, Face ID, Windows Hello)
 - **End-to-End Encryption** - All data encrypted client-side using libsodium's XSalsa20-Poly1305
 - **Multi-Device Support** - Link devices using temporary invite codes that securely transfer keys
 - **Real-Time Sync** - Instant synchronization via Socket.IO WebSockets
-- **Medical Record Management** - Upload and manage encrypted medical documents
-- **AI-Powered Extraction** - Gemini AI extracts structured data from PDFs
-- **Secure Sharing** - Share specific records with healthcare providers using share codes
-- **Access Network Visualization** - Visual representation of who has access to your data
+- **Secure Sharing** - Share specific records with healthcare providers using time-limited share codes
 
 ## Tech Stack
 
+### Current Demo
+
+- **Build**: Vite
+- **UI**: React 19 + Tailwind CSS
+- **AI**: @google/genai (Gemini 3 Flash)
+- **Visualization**: @xyflow/react
+- **Language**: TypeScript
+
+### Coming with Full Release
+
 - **Runtime**: Bun
 - **Framework**: Next.js 16 (App Router)
-- **UI**: React 19 + CSS (MedVault healthcare theme)
-- **State**: TanStack React Query
 - **Real-time**: Socket.IO
 - **Crypto**: libsodium-wrappers-sumo
 - **Auth**: @simplewebauthn/browser
-- **AI**: @google/genai (Gemini)
-- **Visualization**: @xyflow/react
 - **Storage**: IndexedDB (client) + JSON files (server)
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) runtime
-- A browser that supports WebAuthn (Chrome, Safari, Firefox)
+- Node.js 18+ or Bun
+- A Gemini API key from [Google AI Studio](https://aistudio.google.com/)
 
 ### Installation
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your Gemini API key
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
 ```
 
 ### Environment Variables
 
-Create a `.env.local` file with:
+Create a `.env` file with:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-SESSION_SECRET=a_random_32_character_secret_here
 ```
 
 ### Running the App
 
 ```bash
 # Development
-bun run dev
+npm run dev
 
 # Production build
-bun run build
-bun run start
+npm run build
+npm run preview
 ```
 
 The app will be available at http://localhost:3000
 
-## Architecture
+## Project Structure
+
+```
+medvault/
+├── components/
+│   ├── AccessNetworkFlow.tsx   # Interactive access graph
+│   ├── AccessRequestsPanel.tsx # Request approval UI
+│   ├── ChatAssistant.tsx       # AI chat interface
+│   ├── DemoView.tsx            # Main demo dashboard
+│   ├── DocumentModal.tsx       # Document viewer
+│   ├── EdgeConfigModal.tsx     # Access edge configuration
+│   ├── HeroDiagram.tsx         # Landing page diagram
+│   └── Icons.tsx               # Icon components
+├── services/
+│   ├── geminiService.ts        # Gemini AI integration
+│   ├── pageContentService.ts   # Page content extraction
+│   └── webhookService.ts       # Approval webhook sender
+├── App.tsx                     # Main app with landing page
+├── types.ts                    # TypeScript types
+├── index.tsx                   # App entry point
+└── vite.config.ts              # Vite configuration
+```
+
+## Architecture (Coming Soon)
 
 ### Security Model
+
+The full release will implement a zero-knowledge architecture:
 
 - **Entity Keys** - Each entity has a keypair; the private key never leaves the client unencrypted
 - **Device Keys** - Entity keys are wrapped with device-specific keys stored in IndexedDB
@@ -82,33 +119,11 @@ The app will be available at http://localhost:3000
 3. **Link Device** → Generate invite code → Seal private key → New device decrypts
 4. **Share Record** → Generate share code → Seal entity key → Recipient decrypts shared events
 
-## Project Structure
-
-```
-medvault/
-├── app/
-│   ├── api/                 # Next.js API routes
-│   │   ├── _lib/           # Storage utilities
-│   │   ├── entities/       # Entity management
-│   │   ├── invites/        # Device linking
-│   │   ├── session/        # Session management
-│   │   └── shares/         # Data sharing
-│   ├── components/         # React components
-│   ├── hooks/              # Custom hooks (useVault, useEventStream)
-│   ├── lib/                # Core libraries (crypto, api, events)
-│   ├── services/           # Gemini AI service
-│   ├── types/              # TypeScript types
-│   └── page.tsx            # Main app page
-├── server.ts               # Custom Next.js server with Socket.IO
-└── package.json
-```
-
 ## Security Considerations
 
-- Gemini API calls send document content to Google - ensure HIPAA/GDPR compliance
-- Consider on-device AI alternatives for sensitive documents
-- PDF blobs are encrypted before storage
-- Share codes have 10-minute expiry by default
+- Gemini API calls send document content to Google - ensure HIPAA/GDPR compliance for production use
+- The current demo stores data in-memory only (no persistence)
+- Full encryption will be available in the upcoming release
 
 ## License
 
@@ -116,5 +131,4 @@ MIT
 
 ## Credits
 
-Based on [TrueTrace Vault](https://github.com/...) architecture.
-Built at Tech Sovereignty Hackathon.
+Built at Tech Sovereignty Hackathon 2026.
