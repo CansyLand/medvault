@@ -167,7 +167,9 @@ export function SharingSection({
 
       {shares.outgoing.length === 0 && shares.incoming.length === 0 && (
         <div className="empty-state">
-          <ShareIcon className="w-12 h-12" style={{ opacity: 0.2 }} />
+          <div style={{ width: "48px", height: "48px", opacity: 0.2 }}>
+            <ShareIcon style={{ width: "100%", height: "100%" }} />
+          </div>
           <p>No active data shares</p>
           <span className="empty-hint">Share records with providers or receive shared data</span>
         </div>

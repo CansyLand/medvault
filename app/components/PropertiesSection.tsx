@@ -97,7 +97,9 @@ export function PropertiesSection({ properties, onSetProperty, onDeleteProperty,
       {/* Property list */}
       {propertyKeys.length === 0 ? (
         <div className="empty-state">
-          <DocumentIcon className="w-12 h-12" style={{ opacity: 0.2 }} />
+          <div style={{ width: "48px", height: "48px", opacity: 0.2 }}>
+            <DocumentIcon style={{ width: "100%", height: "100%" }} />
+          </div>
           <p>No medical records yet</p>
           <span className="empty-hint">Add your first encrypted record above</span>
         </div>

@@ -204,3 +204,93 @@ export async function getPublicProfiles(entityIds: string[]): Promise<Record<str
   );
   return response.profiles;
 }
+
+// Data Request types
+export type DataRequestStatus = "pending" | "fulfilled" | "declined";
+
+export type DataRequest = {
+  id: string;
+  fromEntityId: string;
+  toEntityId: string;
+  requestedTypes: string[];
+  message?: string;
+  status: DataRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  fulfilledAt?: string;
+  declinedAt?: string;
+};
+
+export type DataRequestsResponse = {
+  entityId: string;
+  role: EntityRole | null;
+  incoming: DataRequest[];
+  outgoing: DataRequest[];
+};
+
+export type CreateDataRequestResponse = {
+  request: DataRequest;
+  socketEvent: {
+    type: string;
+    toEntityId: string;
+    request: DataRequest;
+  };
+};
+
+export type FulfillDataRequestResponse = {
+  request: DataRequest;
+  sharedPropertyNames: string[];
+  socketEvent: {
+    type: string;
+    toEntityId: string;
+    request: DataRequest;
+  };
+};
+
+export type DeclineDataRequestResponse = {
+  request: DataRequest;
+  socketEvent: {
+    type: string;
+    toEntityId: string;
+    request: DataRequest;
+  };
+};
+
+// Data Request API functions
+export async function getDataRequests(): Promise<DataRequestsResponse> {
+  return fetchJson<DataRequestsResponse>("/api/requests");
+}
+
+export async function createDataRequest(
+  toEntityId: string,
+  requestedTypes: string[],
+  message?: string
+): Promise<CreateDataRequestResponse> {
+  return fetchJson<CreateDataRequestResponse>("/api/requests/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ toEntityId, requestedTypes, message })
+  });
+}
+
+export async function fulfillDataRequest(
+  requestId: string,
+  sharedPropertyNames?: string[]
+): Promise<FulfillDataRequestResponse> {
+  return fetchJson<FulfillDataRequestResponse>("/api/requests/fulfill", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requestId, sharedPropertyNames })
+  });
+}
+
+export async function declineDataRequest(
+  requestId: string,
+  reason?: string
+): Promise<DeclineDataRequestResponse> {
+  return fetchJson<DeclineDataRequestResponse>("/api/requests/decline", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requestId, reason })
+  });
+}

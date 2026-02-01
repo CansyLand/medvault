@@ -392,3 +392,86 @@ export async function getPublicProfiles(entityIds: string[]): Promise<Record<str
   );
   return result;
 }
+
+// =====================
+// Data Request Storage
+// =====================
+
+const requestsFile = path.join(entitiesRoot, "_requests.json");
+
+export type DataRequestStatus = "pending" | "fulfilled" | "declined";
+
+export type DataRequest = {
+  id: string;
+  fromEntityId: string;
+  toEntityId: string;
+  requestedTypes: string[]; // MedicalRecordType values
+  message?: string;
+  status: DataRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  fulfilledAt?: string;
+  declinedAt?: string;
+};
+
+type RequestsMap = Record<string, DataRequest>;
+
+export async function createDataRequest(
+  request: Omit<DataRequest, "id" | "createdAt" | "updatedAt" | "status">
+): Promise<DataRequest> {
+  const map = await readJsonFile<RequestsMap>(requestsFile, {});
+  const now = new Date().toISOString();
+  const newRequest: DataRequest = {
+    ...request,
+    id: randomUUID(),
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  };
+  map[newRequest.id] = newRequest;
+  await writeJsonFile(requestsFile, map);
+  return newRequest;
+}
+
+export async function getDataRequest(requestId: string): Promise<DataRequest | null> {
+  const map = await readJsonFile<RequestsMap>(requestsFile, {});
+  return map[requestId] ?? null;
+}
+
+export async function getDataRequestsForEntity(entityId: string): Promise<DataRequest[]> {
+  const map = await readJsonFile<RequestsMap>(requestsFile, {});
+  return Object.values(map).filter((r) => r.toEntityId === entityId);
+}
+
+export async function getDataRequestsByEntity(entityId: string): Promise<DataRequest[]> {
+  const map = await readJsonFile<RequestsMap>(requestsFile, {});
+  return Object.values(map).filter((r) => r.fromEntityId === entityId);
+}
+
+export async function updateDataRequestStatus(
+  requestId: string,
+  status: DataRequestStatus
+): Promise<DataRequest | null> {
+  const map = await readJsonFile<RequestsMap>(requestsFile, {});
+  const request = map[requestId];
+  if (!request) return null;
+  
+  const now = new Date().toISOString();
+  request.status = status;
+  request.updatedAt = now;
+  
+  if (status === "fulfilled") {
+    request.fulfilledAt = now;
+  } else if (status === "declined") {
+    request.declinedAt = now;
+  }
+  
+  map[requestId] = request;
+  await writeJsonFile(requestsFile, map);
+  return request;
+}
+
+export async function getAllDataRequests(): Promise<DataRequest[]> {
+  const map = await readJsonFile<RequestsMap>(requestsFile, {});
+  return Object.values(map);
+}

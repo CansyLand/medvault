@@ -381,7 +381,9 @@ export function ActivityLogSection({ events }: ActivityLogSectionProps) {
         </div>
       ) : (
         <div className="empty-state">
-          <HistoryIcon className="w-12 h-12" style={{ opacity: 0.2 }} />
+          <div style={{ width: "48px", height: "48px", opacity: 0.2 }}>
+            <HistoryIcon style={{ width: "100%", height: "100%" }} />
+          </div>
           <p>No activity yet</p>
           <span className="empty-hint">
             Your activity will appear here as you add records and share data

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Toaster } from "sonner";
 import { useVault } from "./hooks/useVault";
+import { useDataRequests } from "./hooks/useDataRequests";
 import { LoginView } from "./components/LoginView";
 import { Sidebar } from "./components/Sidebar";
 import { PropertiesSection } from "./components/PropertiesSection";
@@ -13,6 +14,7 @@ import { DevicesSection } from "./components/DevicesSection";
 import { SettingsSection } from "./components/SettingsSection";
 import { AccessNetworkFlow } from "./components/AccessNetworkFlow";
 import { ActivityLogSection } from "./components/ActivityLogSection";
+import { AccessRequestsPanel } from "./components/AccessRequestsPanel";
 import { ChatAssistant } from "./components/ChatAssistant";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { PropertyKeyPrefixes, getDisplayName } from "./types/medical";
@@ -21,6 +23,9 @@ export default function HomePage() {
   const vault = useVault();
   const [activeSection, setActiveSection] = useState("records");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  
+  // Data requests hook (only active when signed in)
+  const dataRequests = useDataRequests(vault.signedIn ? vault.entityId : null);
 
   // Show login view if not signed in
   if (!vault.signedIn) {
@@ -176,6 +181,7 @@ export default function HomePage() {
           connected={vault.connected}
           onLogout={vault.logout}
           entityRole={vault.entityRole}
+          pendingRequestsCount={dataRequests.pendingCount}
         />
 
         <main className="main-content">
@@ -191,6 +197,10 @@ export default function HomePage() {
               sharedData={vault.sharedData}
               allPatients={vault.allPatients}
               onRegisterPatient={vault.registerPatient}
+              onRequestData={vault.entityRole === "doctor" ? async (patientId, requestedTypes, message) => {
+                await dataRequests.sendRequest(patientId, requestedTypes, message);
+              } : undefined}
+              isRequestingData={dataRequests.isSendingRequest}
             />
           )}
 
@@ -210,6 +220,26 @@ export default function HomePage() {
                 userRole={vault.entityRole}
               />
             </div>
+          )}
+
+          {activeSection === "requests" && vault.entityRole === "patient" && (
+            <AccessRequestsPanel
+              requests={dataRequests.incomingRequests}
+              myRecords={vault.properties}
+              onFulfill={async (requestId, sharedPropertyNames) => {
+                // Create shares for the selected records
+                for (const propertyName of sharedPropertyNames) {
+                  await vault.createShareInvite(propertyName);
+                }
+                // Mark the request as fulfilled
+                await dataRequests.fulfillRequest(requestId, sharedPropertyNames);
+              }}
+              onDecline={async (requestId) => {
+                await dataRequests.declineRequest(requestId);
+              }}
+              isFulfilling={dataRequests.isFulfillingRequest}
+              isDeclining={dataRequests.isDecliningRequest}
+            />
           )}
 
           {activeSection === "sharing" && (

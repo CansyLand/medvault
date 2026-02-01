@@ -7,6 +7,7 @@ import { DocumentModal } from "./DocumentModal";
 import { TimelineView } from "./TimelineView";
 import { RecordTypeFilter, type FilterableRecordType } from "./RecordTypeFilter";
 import { CopyableEntityId } from "./CopyableEntityId";
+import { RequestDataModal } from "./RequestDataModal";
 import type { MedicalRecord, MedicalRecordType } from "../types/medical";
 import {
   parseRecordFromProperty,
@@ -24,6 +25,8 @@ interface PatientRecordsViewProps {
   pendingRecords: Record<string, string>;
   onUpload: (recordKey: string, recordValue: string, pdfKey?: string, pdfValue?: string) => void;
   onDeleteRecord: (key: string, pdfKey?: string) => void;
+  onRequestData?: (patientId: string, requestedTypes: MedicalRecordType[], message?: string) => Promise<void>;
+  isRequestingData?: boolean;
   disabled: boolean;
   className?: string;
 }
@@ -44,6 +47,8 @@ export function PatientRecordsView({
   pendingRecords,
   onUpload,
   onDeleteRecord,
+  onRequestData,
+  isRequestingData = false,
   disabled,
   className = "",
 }: PatientRecordsViewProps) {
@@ -52,6 +57,7 @@ export function PatientRecordsView({
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   // Parse all records
   const allRecords = useMemo(() => {
@@ -138,7 +144,9 @@ export function PatientRecordsView({
     return (
       <div className={`patient-records-view no-patient ${className}`}>
         <div className="no-patient-message">
-          <HeartIcon className="w-12 h-12" style={{ opacity: 0.2 }} />
+          <div style={{ width: "48px", height: "48px", opacity: 0.2 }}>
+            <HeartIcon style={{ width: "100%", height: "100%" }} />
+          </div>
           <h3>Select a Patient</h3>
           <p>Choose a patient from the list to view their medical records</p>
         </div>
@@ -154,23 +162,34 @@ export function PatientRecordsView({
           <h2>{patientName}</h2>
           <CopyableEntityId entityId={patientId} short />
         </div>
-        <div className="view-toggle">
-          <button
-            className={`view-toggle-btn ${viewMode === "timeline" ? "active" : ""}`}
-            onClick={() => setViewMode("timeline")}
-            title="Timeline View"
-          >
-            <TimelineIcon className="w-4 h-4" />
-            <span>Timeline</span>
-          </button>
-          <button
-            className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
-            onClick={() => setViewMode("table")}
-            title="Table View"
-          >
-            <ListIcon className="w-4 h-4" />
-            <span>Table</span>
-          </button>
+        <div className="patient-header-actions">
+          {onRequestData && (
+            <button
+              className="request-data-btn"
+              onClick={() => setShowRequestModal(true)}
+              disabled={disabled}
+            >
+              Request Data
+            </button>
+          )}
+          <div className="view-toggle">
+            <button
+              className={`view-toggle-btn ${viewMode === "timeline" ? "active" : ""}`}
+              onClick={() => setViewMode("timeline")}
+              title="Timeline View"
+            >
+              <TimelineIcon className="w-4 h-4" />
+              <span>Timeline</span>
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
+              onClick={() => setViewMode("table")}
+              title="Table View"
+            >
+              <ListIcon className="w-4 h-4" />
+              <span>Table</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -283,6 +302,19 @@ export function PatientRecordsView({
           setSelectedPdfBase64(null);
         }}
       />
+
+      {/* Request Data Modal */}
+      {onRequestData && (
+        <RequestDataModal
+          isOpen={showRequestModal}
+          onClose={() => setShowRequestModal(false)}
+          onSubmit={async (requestedTypes, message) => {
+            await onRequestData(patientId!, requestedTypes, message);
+          }}
+          patientName={patientName}
+          isSubmitting={isRequestingData}
+        />
+      )}
     </div>
   );
 }

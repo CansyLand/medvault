@@ -28,6 +28,21 @@ type SharedEventEnvelope = {
   };
 };
 
+// Data request notification envelope
+type DataRequestEnvelope = {
+  type: "dataRequest" | "requestFulfilled" | "requestDeclined";
+  request: {
+    id: string;
+    fromEntityId: string;
+    toEntityId: string;
+    requestedTypes: string[];
+    message?: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);
@@ -101,6 +116,42 @@ app.prepare().then(() => {
         console.error("[Socket.IO] Error appending event:", error);
         socket.emit("error", { message: "Failed to append event" });
       }
+    });
+
+    // Data request: doctor sends request to patient
+    socket.on("dataRequest", (data: DataRequestEnvelope) => {
+      const { request } = data;
+      console.log(`[Socket.IO] Data request from ${request.fromEntityId} to ${request.toEntityId}`);
+      
+      // Send notification to the patient
+      io.to(`entity:${request.toEntityId}`).emit("dataRequest", {
+        type: "dataRequest",
+        request,
+      });
+    });
+
+    // Request fulfilled: patient notifies doctor
+    socket.on("requestFulfilled", (data: DataRequestEnvelope) => {
+      const { request } = data;
+      console.log(`[Socket.IO] Request ${request.id} fulfilled, notifying ${request.fromEntityId}`);
+      
+      // Send notification to the doctor
+      io.to(`entity:${request.fromEntityId}`).emit("requestFulfilled", {
+        type: "requestFulfilled",
+        request,
+      });
+    });
+
+    // Request declined: patient notifies doctor
+    socket.on("requestDeclined", (data: DataRequestEnvelope) => {
+      const { request } = data;
+      console.log(`[Socket.IO] Request ${request.id} declined, notifying ${request.fromEntityId}`);
+      
+      // Send notification to the doctor
+      io.to(`entity:${request.fromEntityId}`).emit("requestDeclined", {
+        type: "requestDeclined",
+        request,
+      });
     });
 
     socket.on("disconnect", () => {

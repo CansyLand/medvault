@@ -1,23 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon } from "./Icons";
+import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon, HeartIcon } from "./Icons";
 import type { EntityRole } from "../lib/api";
 
 type NavItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
+  badgeKey?: string; // Key for dynamic badge count
 };
 
-const navItems: NavItem[] = [
-  { id: "records", label: "Medical Records", icon: <DocumentIcon className="w-5 h-5" /> },
-  { id: "network", label: "Access Network", icon: <NetworkIcon className="w-5 h-5" /> },
-  { id: "sharing", label: "Sharing", icon: <ShareIcon className="w-5 h-5" /> },
-  { id: "activity", label: "Activity Log", icon: <HistoryIcon className="w-5 h-5" /> },
-  { id: "devices", label: "Devices", icon: <DeviceIcon className="w-5 h-5" /> },
-  { id: "settings", label: "Settings", icon: <SettingsIcon className="w-5 h-5" /> },
-];
+const getNavItems = (isPatient: boolean): NavItem[] => {
+  const items: NavItem[] = [
+    { id: "records", label: "Medical Records", icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: "network", label: "Access Network", icon: <NetworkIcon className="w-5 h-5" /> },
+  ];
+
+  // Add requests section for patients only
+  if (isPatient) {
+    items.push({ 
+      id: "requests", 
+      label: "Data Requests", 
+      icon: <HeartIcon className="w-5 h-5" />,
+      badgeKey: "requests",
+    });
+  }
+
+  items.push(
+    { id: "sharing", label: "Sharing", icon: <ShareIcon className="w-5 h-5" /> },
+    { id: "activity", label: "Activity Log", icon: <HistoryIcon className="w-5 h-5" /> },
+    { id: "devices", label: "Devices", icon: <DeviceIcon className="w-5 h-5" /> },
+    { id: "settings", label: "Settings", icon: <SettingsIcon className="w-5 h-5" /> },
+  );
+
+  return items;
+};
 
 type SidebarProps = {
   activeSection: string;
@@ -25,9 +43,17 @@ type SidebarProps = {
   connected: boolean;
   onLogout: () => void;
   entityRole?: EntityRole | null;
+  pendingRequestsCount?: number;
 };
 
-export function Sidebar({ activeSection, onSectionChange, connected, onLogout, entityRole }: SidebarProps) {
+export function Sidebar({ 
+  activeSection, 
+  onSectionChange, 
+  connected, 
+  onLogout, 
+  entityRole,
+  pendingRequestsCount = 0,
+}: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleNavClick = (id: string) => {
@@ -39,6 +65,14 @@ export function Sidebar({ activeSection, onSectionChange, connected, onLogout, e
     if (role === "doctor") return "Healthcare Provider";
     if (role === "patient") return "Patient";
     return null;
+  };
+
+  const isPatient = entityRole === "patient";
+  const navItems = getNavItems(isPatient);
+
+  const getBadgeCount = (badgeKey: string | undefined): number => {
+    if (badgeKey === "requests") return pendingRequestsCount;
+    return 0;
   };
 
   return (
@@ -75,16 +109,23 @@ export function Sidebar({ activeSection, onSectionChange, connected, onLogout, e
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeSection === item.id ? "active" : ""}`}
-              onClick={() => handleNavClick(item.id)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const badgeCount = getBadgeCount(item.badgeKey);
+            
+            return (
+              <button
+                key={item.id}
+                className={`nav-item ${activeSection === item.id ? "active" : ""}`}
+                onClick={() => handleNavClick(item.id)}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-label">{item.label}</span>
+                {badgeCount > 0 && (
+                  <span className="nav-badge">{badgeCount}</span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">

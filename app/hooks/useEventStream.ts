@@ -14,7 +14,11 @@ export type EventType =
   | "ShareAccepted"
   | "ShareRevoked"
   | "RecordTransferred"
-  | "RecordReceived";
+  | "RecordReceived"
+  | "DataRequestCreated"
+  | "DataRequestReceived"
+  | "DataRequestFulfilled"
+  | "DataRequestDeclined";
 
 export type EntityCreatedData = {
   entityId: string;
@@ -62,6 +66,31 @@ export type RecordReceivedData = {
   recordTitle?: string;
 };
 
+export type DataRequestCreatedData = {
+  requestId: string;
+  toEntityId: string;
+  requestedTypes: string[];
+  message?: string;
+};
+
+export type DataRequestReceivedData = {
+  requestId: string;
+  fromEntityId: string;
+  requestedTypes: string[];
+  message?: string;
+};
+
+export type DataRequestFulfilledData = {
+  requestId: string;
+  fromEntityId: string;
+  sharedPropertyNames?: string[];
+};
+
+export type DataRequestDeclinedData = {
+  requestId: string;
+  fromEntityId: string;
+};
+
 export type EventData = 
   | EntityCreatedData 
   | PropertySetData 
@@ -71,7 +100,11 @@ export type EventData =
   | ShareAcceptedData
   | ShareRevokedData
   | RecordTransferredData
-  | RecordReceivedData;
+  | RecordReceivedData
+  | DataRequestCreatedData
+  | DataRequestReceivedData
+  | DataRequestFulfilledData
+  | DataRequestDeclinedData;
 
 // Decrypted event (client-side only)
 export type EntityEvent = {

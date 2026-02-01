@@ -1,381 +1,376 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import {
-  DataAccessRequest,
-  RequestedDataItem,
-} from "../types/medical";
-import { AlertTriangleIcon, HistoryIcon, DocumentIcon } from "./Icons";
+import React, { useState, useMemo, useEffect } from "react";
+import { HistoryIcon, DocumentIcon, ShieldIcon, HeartIcon } from "./Icons";
+import { getRecordTypeDisplayName, type MedicalRecord, type MedicalRecordType, parseRecordFromProperty, PropertyKeyPrefixes } from "../types/medical";
+import type { DataRequest, PublicProfile } from "../lib/api";
+import { getPublicProfiles } from "../lib/api";
+
+// Type colors for visual distinction
+const TYPE_COLORS: Record<MedicalRecordType, string> = {
+  lab_report: "#3b82f6",
+  imaging: "#a855f7",
+  prescription: "#22c55e",
+  clinical_notes: "#f59e0b",
+  insurance: "#6366f1",
+  immunization: "#14b8a6",
+  allergy: "#ef4444",
+  vital_signs: "#ec4899",
+  document: "#64748b",
+  other: "#94a3b8",
+};
 
 interface AccessRequestsPanelProps {
-  requests: DataAccessRequest[];
-  onApproveSelected: (
-    requestId: string,
-    selectedItems: RequestedDataItem[]
-  ) => void;
-  onApproveAll: (requestId: string) => void;
-  onDeny: (requestId: string) => void;
+  requests: DataRequest[];
+  myRecords: Record<string, string>; // properties from user's vault
+  onFulfill: (requestId: string, sharedPropertyNames: string[]) => Promise<void>;
+  onDecline: (requestId: string) => Promise<void>;
+  isFulfilling?: boolean;
+  isDeclining?: boolean;
 }
 
-// Helper to get icon based on item type
-const getItemIcon = (name: string, source: string) => {
-  const nameLower = name.toLowerCase();
-  if (
-    nameLower.includes("blood") ||
-    nameLower.includes("lab") ||
-    nameLower.includes("panel")
-  ) {
-    return (
-      <div className="record-type-icon lab">LA</div>
-    );
-  }
-  if (nameLower.includes("allergy") || nameLower.includes("alert")) {
-    return (
-      <AlertTriangleIcon className="w-5 h-5" style={{ color: "var(--warning)" }} />
-    );
-  }
-  if (
-    nameLower.includes("medication") ||
-    nameLower.includes("rx") ||
-    nameLower.includes("prescription")
-  ) {
-    return (
-      <div className="record-type-icon rx">RX</div>
-    );
-  }
-  if (
-    nameLower.includes("x-ray") ||
-    nameLower.includes("mri") ||
-    nameLower.includes("imaging") ||
-    nameLower.includes("scan")
-  ) {
-    return (
-      <div className="record-type-icon imaging">IM</div>
-    );
-  }
-  return <DocumentIcon className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />;
-};
+interface ParsedRecord {
+  key: string;
+  record: MedicalRecord;
+}
 
 export function AccessRequestsPanel({
   requests,
-  onApproveSelected,
-  onApproveAll,
-  onDeny,
+  myRecords,
+  onFulfill,
+  onDecline,
+  isFulfilling = false,
+  isDeclining = false,
 }: AccessRequestsPanelProps) {
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
-    requests.length > 0 ? requests[0].id : null
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [selectedRecordKeys, setSelectedRecordKeys] = useState<Set<string>>(new Set());
+  const [requesterProfiles, setRequesterProfiles] = useState<Record<string, PublicProfile>>({});
+
+  // Get pending requests only
+  const pendingRequests = useMemo(() => 
+    requests.filter((r) => r.status === "pending"),
+    [requests]
   );
-  const [itemToggles, setItemToggles] = useState<Record<string, boolean>>({});
 
-  const selectedRequest = requests.find((r) => r.id === selectedRequestId) || null;
-
-  // Initialize toggles when selected request changes
+  // Auto-select first request if none selected
   useEffect(() => {
-    if (selectedRequest && selectedRequest.requestedItems) {
-      const initialToggles: Record<string, boolean> = {};
-      selectedRequest.requestedItems.forEach((item) => {
-        initialToggles[item.id] = item.enabled;
-      });
-      setItemToggles(initialToggles);
+    if (!selectedRequestId && pendingRequests.length > 0) {
+      setSelectedRequestId(pendingRequests[0].id);
     }
-  }, [selectedRequest]);
+  }, [pendingRequests, selectedRequestId]);
 
-  const handleToggle = (itemId: string) => {
-    setItemToggles((prev) => ({
-      ...prev,
-      [itemId]: !prev[itemId],
-    }));
+  // Fetch requester profiles
+  useEffect(() => {
+    const requesterIds = [...new Set(pendingRequests.map((r) => r.fromEntityId))];
+    if (requesterIds.length === 0) return;
+
+    getPublicProfiles(requesterIds)
+      .then(setRequesterProfiles)
+      .catch((err) => console.error("Failed to fetch requester profiles:", err));
+  }, [pendingRequests]);
+
+  const selectedRequest = useMemo(
+    () => pendingRequests.find((r) => r.id === selectedRequestId) || null,
+    [pendingRequests, selectedRequestId]
+  );
+
+  // Parse user's records
+  const allMyRecords: ParsedRecord[] = useMemo(() => {
+    const result: ParsedRecord[] = [];
+    Object.entries(myRecords).forEach(([key, value]) => {
+      if (key.startsWith(PropertyKeyPrefixes.RECORD)) {
+        const record = parseRecordFromProperty(value);
+        if (record) {
+          result.push({ key, record });
+        }
+      }
+    });
+    return result.sort((a, b) => {
+      const dateA = a.record.date || a.record.createdAt;
+      const dateB = b.record.date || b.record.createdAt;
+      return dateB.localeCompare(dateA);
+    });
+  }, [myRecords]);
+
+  // Filter records by requested types
+  const matchingRecords = useMemo(() => {
+    if (!selectedRequest) return [];
+    const requestedTypes = new Set(selectedRequest.requestedTypes);
+    return allMyRecords.filter((r) => requestedTypes.has(r.record.type));
+  }, [allMyRecords, selectedRequest]);
+
+  // Reset selected records when request changes
+  useEffect(() => {
+    setSelectedRecordKeys(new Set());
+  }, [selectedRequestId]);
+
+  const handleToggleRecord = (key: string) => {
+    setSelectedRecordKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
-  const handleApproveSelected = () => {
-    if (!selectedRequest || !selectedRequest.requestedItems) return;
-    const selectedItems = selectedRequest.requestedItems.filter(
-      (item) => itemToggles[item.id]
+  const handleSelectAll = () => {
+    if (selectedRecordKeys.size === matchingRecords.length) {
+      setSelectedRecordKeys(new Set());
+    } else {
+      setSelectedRecordKeys(new Set(matchingRecords.map((r) => r.key)));
+    }
+  };
+
+  const handleFulfill = async () => {
+    if (!selectedRequest || selectedRecordKeys.size === 0) return;
+    await onFulfill(selectedRequest.id, Array.from(selectedRecordKeys));
+    setSelectedRecordKeys(new Set());
+    setSelectedRequestId(null);
+  };
+
+  const handleDecline = async () => {
+    if (!selectedRequest) return;
+    await onDecline(selectedRequest.id);
+    setSelectedRequestId(null);
+  };
+
+  const getRequesterName = (entityId: string) => {
+    const profile = requesterProfiles[entityId];
+    return profile?.displayName || `Provider ${entityId.slice(0, 8)}...`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  // No pending requests
+  if (pendingRequests.length === 0) {
+    return (
+      <div className="section">
+        <div className="section-header">
+          <h2 className="font-merriweather">Data Requests</h2>
+        </div>
+        <div className="empty-state">
+          <div style={{ width: "48px", height: "48px", opacity: 0.3 }}>
+            <HeartIcon style={{ width: "100%", height: "100%" }} />
+          </div>
+          <h3>No Pending Requests</h3>
+          <p>When healthcare providers request your medical records, they will appear here.</p>
+        </div>
+      </div>
     );
-    onApproveSelected(selectedRequest.id, selectedItems);
-  };
-
-  const handleApproveAll = () => {
-    if (!selectedRequest) return;
-    onApproveAll(selectedRequest.id);
-  };
-
-  const handleDeny = () => {
-    if (!selectedRequest) return;
-    onDeny(selectedRequest.id);
-  };
-
-  const pendingRequests = requests.filter((r) => r.status === "pending");
-  const selectedItemCount = selectedRequest?.requestedItems
-    ? Object.values(itemToggles).filter(Boolean).length
-    : 0;
+  }
 
   return (
-    <div style={{ display: "flex", gap: "1.5rem", minHeight: "500px" }}>
-      {/* Left Panel - Request List */}
-      <div style={{ width: "320px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {pendingRequests.map((request) => (
-          <button
-            key={request.id}
-            onClick={() => setSelectedRequestId(request.id)}
-            style={{
-              width: "100%",
-              textAlign: "left",
-              padding: "1rem",
-              borderRadius: "16px",
-              border: selectedRequestId === request.id
-                ? "2px solid var(--teal-deep)"
-                : "2px solid var(--border)",
-              background: selectedRequestId === request.id
-                ? "var(--mint-pale)"
-                : "white",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <h4 style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "1rem" }}>
-              {request.requester}
-            </h4>
-            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-              {request.purpose}
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.75rem" }}>
-              <span style={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                background: "var(--bg-tertiary)",
-                padding: "0.25rem 0.5rem",
-                borderRadius: "4px",
-              }}>
-                {request.requestedItems?.length || 0} ITEMS
-              </span>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                {request.createdAt}
-              </span>
-            </div>
-          </button>
-        ))}
-
-        {pendingRequests.length === 0 && (
-          <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--text-muted)" }}>
-            <p style={{ fontSize: "0.875rem" }}>No pending requests</p>
-          </div>
-        )}
+    <div className="section">
+      <div className="section-header">
+        <h2 className="font-merriweather">Data Requests</h2>
+        <span className="pending-badge">{pendingRequests.length} pending</span>
       </div>
 
-      {/* Right Panel - Request Details */}
-      {selectedRequest && selectedRequest.status === "pending" ? (
-        <div style={{
-          flex: 1,
-          background: "white",
-          borderRadius: "20px",
-          border: "1px solid var(--border)",
-          padding: "1.5rem",
-        }}>
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-            <div>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: 700, fontFamily: '"Merriweather", Georgia, serif' }}>
-                {selectedRequest.requester}
-              </h3>
-              <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                {selectedRequest.purpose}
-              </p>
-            </div>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.375rem 0.75rem",
-              background: "rgba(245, 158, 11, 0.1)",
-              border: "1px solid rgba(245, 158, 11, 0.2)",
-              borderRadius: "9999px",
-            }}>
-              <HistoryIcon className="w-4 h-4" style={{ color: "var(--warning)" }} />
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--warning)" }}>
-                Pending Decision
-              </span>
-            </div>
-          </div>
-
-          {/* Data Items */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <h4 style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "1rem" }}>
-              Data requested from your vault
-            </h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {selectedRequest.requestedItems?.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "1rem",
-                    background: "var(--bg-tertiary)",
-                    borderRadius: "12px",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <div style={{
-                      width: "40px",
-                      height: "40px",
-                      background: "white",
-                      borderRadius: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      border: "1px solid var(--border)",
-                    }}>
-                      {getItemIcon(item.name, item.source)}
+      <div className="requests-layout">
+        {/* Left Panel - Request List */}
+        <div className="requests-list">
+          {pendingRequests.map((request) => {
+            const requesterName = getRequesterName(request.fromEntityId);
+            const requesterProfile = requesterProfiles[request.fromEntityId];
+            
+            return (
+              <button
+                key={request.id}
+                className={`request-item ${selectedRequestId === request.id ? "active" : ""}`}
+                onClick={() => setSelectedRequestId(request.id)}
+              >
+                <div className="request-item-header">
+                  <div className="request-requester">
+                    <div className="request-avatar">
+                      <ShieldIcon className="w-4 h-4" />
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                        {item.name}
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        Source: {item.source} • {item.accessType}
-                      </div>
+                      <h4>{requesterName}</h4>
+                      {requesterProfile?.organizationName && (
+                        <span className="request-org">{requesterProfile.organizationName}</span>
+                      )}
                     </div>
                   </div>
-                  {/* Toggle Switch */}
-                  <button
-                    onClick={() => handleToggle(item.id)}
-                    style={{
-                      position: "relative",
-                      width: "48px",
-                      height: "28px",
-                      borderRadius: "9999px",
-                      border: "none",
-                      cursor: "pointer",
-                      background: itemToggles[item.id] ? "var(--teal-deep)" : "var(--border-light)",
-                      transition: "background 0.15s ease",
+                </div>
+                <div className="request-types-preview">
+                  {request.requestedTypes.slice(0, 3).map((type) => (
+                    <span
+                      key={type}
+                      className="type-chip-mini"
+                      style={{ backgroundColor: `${TYPE_COLORS[type as MedicalRecordType]}20`, color: TYPE_COLORS[type as MedicalRecordType] }}
+                    >
+                      {getRecordTypeDisplayName(type as MedicalRecordType)}
+                    </span>
+                  ))}
+                  {request.requestedTypes.length > 3 && (
+                    <span className="type-chip-more">+{request.requestedTypes.length - 3}</span>
+                  )}
+                </div>
+                <div className="request-meta">
+                  <span className="request-time">{formatDate(request.createdAt)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Panel - Request Details */}
+        {selectedRequest ? (
+          <div className="request-details">
+            {/* Header */}
+            <div className="request-details-header">
+              <div>
+                <h3 className="font-merriweather">{getRequesterName(selectedRequest.fromEntityId)}</h3>
+                {requesterProfiles[selectedRequest.fromEntityId]?.organizationName && (
+                  <p className="request-org">{requesterProfiles[selectedRequest.fromEntityId]?.organizationName}</p>
+                )}
+              </div>
+              <div className="request-status pending">
+                <HistoryIcon className="w-4 h-4" />
+                <span>Pending Decision</span>
+              </div>
+            </div>
+
+            {/* Message */}
+            {selectedRequest.message && (
+              <div className="request-message">
+                <p>"{selectedRequest.message}"</p>
+              </div>
+            )}
+
+            {/* Requested Types */}
+            <div className="request-types-section">
+              <h4>Requested Data Types</h4>
+              <div className="request-types-list">
+                {selectedRequest.requestedTypes.map((type) => (
+                  <span
+                    key={type}
+                    className="type-chip"
+                    style={{ 
+                      backgroundColor: `${TYPE_COLORS[type as MedicalRecordType]}15`, 
+                      borderColor: TYPE_COLORS[type as MedicalRecordType],
+                      color: TYPE_COLORS[type as MedicalRecordType] 
                     }}
                   >
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "4px",
-                        left: itemToggles[item.id] ? "24px" : "4px",
-                        width: "20px",
-                        height: "20px",
-                        background: "white",
-                        borderRadius: "50%",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                        transition: "left 0.15s ease",
-                      }}
+                    <span 
+                      className="type-dot" 
+                      style={{ backgroundColor: TYPE_COLORS[type as MedicalRecordType] }}
                     />
+                    {getRecordTypeDisplayName(type as MedicalRecordType)}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Matching Records */}
+            <div className="matching-records-section">
+              <div className="matching-records-header">
+                <h4>Your Matching Records ({matchingRecords.length})</h4>
+                {matchingRecords.length > 0 && (
+                  <button className="small secondary" onClick={handleSelectAll}>
+                    {selectedRecordKeys.size === matchingRecords.length ? "Deselect All" : "Select All"}
                   </button>
+                )}
+              </div>
+
+              {matchingRecords.length === 0 ? (
+                <div className="no-matching-records">
+                  <p>No records match the requested types</p>
+                  <span>You can still decline this request</span>
                 </div>
-              ))}
+              ) : (
+                <div className="matching-records-list">
+                  {matchingRecords.map((item) => {
+                    const isSelected = selectedRecordKeys.has(item.key);
+                    const typeColor = TYPE_COLORS[item.record.type];
+                    const date = new Date(item.record.date || item.record.createdAt);
+                    
+                    return (
+                      <button
+                        key={item.key}
+                        className={`matching-record-item ${isSelected ? "selected" : ""}`}
+                        onClick={() => handleToggleRecord(item.key)}
+                      >
+                        <div className="record-checkbox">
+                          {isSelected && <span>✓</span>}
+                        </div>
+                        <div className="record-info">
+                          <div className="record-title">{item.record.title}</div>
+                          <div className="record-details">
+                            <span 
+                              className="record-type-badge"
+                              style={{ backgroundColor: `${typeColor}20`, color: typeColor }}
+                            >
+                              {getRecordTypeDisplayName(item.record.type)}
+                            </span>
+                            <span className="record-date">
+                              {date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
+                            {item.record.provider && (
+                              <span className="record-provider">{item.record.provider}</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Metadata Row */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "1rem",
-            marginBottom: "1.5rem",
-            padding: "1rem",
-            background: "var(--bg-tertiary)",
-            borderRadius: "12px",
-          }}>
-            <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                Format
-              </div>
-              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                FHIR JSON
-              </div>
+            {/* Action Buttons */}
+            <div className="request-actions">
+              <button
+                className="secondary"
+                onClick={handleDecline}
+                disabled={isDeclining || isFulfilling}
+              >
+                {isDeclining ? "Declining..." : "Decline Request"}
+              </button>
+              <button
+                className="primary"
+                onClick={handleFulfill}
+                disabled={selectedRecordKeys.size === 0 || isFulfilling || isDeclining}
+              >
+                {isFulfilling 
+                  ? "Sharing..." 
+                  : `Share ${selectedRecordKeys.size} Record${selectedRecordKeys.size !== 1 ? "s" : ""}`
+                }
+              </button>
             </div>
-            <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                Validity
-              </div>
-              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                {selectedRequest.expiresAt ? "Until " + selectedRequest.expiresAt : "30 Days"}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                Retention
-              </div>
-              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                Clinical Duration
-              </div>
-            </div>
-          </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.75rem" }}>
-            <button
-              onClick={handleDeny}
-              className="secondary"
-              style={{ padding: "0.75rem 1.5rem" }}
-            >
-              Deny Request
-            </button>
-            <button
-              onClick={handleApproveSelected}
-              disabled={selectedItemCount === 0}
-              style={{
-                padding: "0.75rem 1.5rem",
-                background: "transparent",
-                border: "2px solid var(--teal-deep)",
-                color: "var(--teal-deep)",
-              }}
-            >
-              Approve Selected
-            </button>
-            <button
-              onClick={handleApproveAll}
-              style={{ padding: "0.75rem 1.5rem" }}
-            >
-              Approve All
-            </button>
-          </div>
-
-          {/* Encryption Notice */}
-          <div style={{
-            marginTop: "1.5rem",
-            padding: "1rem",
-            background: "var(--mint-pale)",
-            borderRadius: "12px",
-            border: "1px solid var(--mint-secondary)",
-          }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-              <DocumentIcon className="w-5 h-5" style={{ color: "var(--teal-deep)", flexShrink: 0, marginTop: "2px" }} />
+            {/* Encryption Notice */}
+            <div className="encryption-notice">
+              <DocumentIcon className="w-5 h-5" />
               <div>
-                <h5 style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--text-primary)" }}>
-                  Your data remains encrypted
-                </h5>
-                <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem", lineHeight: 1.5 }}>
-                  Approving a request grants a timed, verifiable cryptographic key to view the specific fields you've allowed. You can revoke access at any time.
+                <h5>Your data remains encrypted</h5>
+                <p>
+                  Sharing records grants the requester access to view the specific records you've selected. 
+                  You can revoke access at any time from the Sharing section.
                 </p>
               </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div style={{
-          flex: 1,
-          background: "white",
-          borderRadius: "20px",
-          border: "1px solid var(--border)",
-          padding: "1.5rem",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}>
-          <div style={{ textAlign: "center", color: "var(--text-muted)" }}>
-            <HistoryIcon className="w-12 h-12" style={{ margin: "0 auto 1rem", opacity: 0.3 }} />
-            <p style={{ fontSize: "0.875rem", fontWeight: 500 }}>Select a request to review</p>
+        ) : (
+          <div className="request-details empty">
+            <div style={{ width: "48px", height: "48px" }}>
+              <HistoryIcon style={{ width: "100%", height: "100%" }} />
+            </div>
+            <p>Select a request to review</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

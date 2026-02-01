@@ -33,6 +33,9 @@ interface MedicalRecordsSectionProps {
   // Patient management
   allPatients?: Array<{ entityId: string; recordCount: number; registered: boolean }>;
   onRegisterPatient?: (entityId: string) => void;
+  // Data requests
+  onRequestData?: (patientId: string, requestedTypes: string[], message?: string) => Promise<void>;
+  isRequestingData?: boolean;
 }
 
 export function MedicalRecordsSection({
@@ -46,6 +49,8 @@ export function MedicalRecordsSection({
   sharedData,
   allPatients,
   onRegisterPatient,
+  onRequestData,
+  isRequestingData,
 }: MedicalRecordsSectionProps) {
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
@@ -288,6 +293,8 @@ export function MedicalRecordsSection({
             pendingRecords={properties}
             onUpload={handleUpload}
             onDeleteRecord={handleDelete}
+            onRequestData={onRequestData}
+            isRequestingData={isRequestingData}
             disabled={disabled}
           />
         </div>
