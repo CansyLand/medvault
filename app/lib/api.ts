@@ -12,6 +12,19 @@ export type InviteConsumeResponse = {
   sealed: unknown;
 };
 
+// Custom error class for API errors
+export class ApiError extends Error {
+  status: number;
+  errorCode?: string;
+
+  constructor(message: string, status: number, errorCode?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.errorCode = errorCode;
+  }
+}
+
 export async function fetchJson<T>(
   input: RequestInfo,
   init?: RequestInit
@@ -21,7 +34,19 @@ export async function fetchJson<T>(
     credentials: 'include', // Ensure cookies are sent
   });
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    // Try to parse error body for more context
+    let errorMessage = `Request failed: ${response.status}`;
+    let errorCode: string | undefined;
+    try {
+      const errorBody = await response.json() as { error?: string; code?: string };
+      if (errorBody.error) {
+        errorMessage = errorBody.error;
+        errorCode = errorBody.code;
+      }
+    } catch {
+      // Body wasn't JSON, use default message
+    }
+    throw new ApiError(errorMessage, response.status, errorCode);
   }
   return (await response.json()) as T;
 }

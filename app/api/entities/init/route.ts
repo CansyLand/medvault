@@ -8,6 +8,7 @@ import {
   linkPasskeyToEntity,
   setEntityRole,
   setEntityPublicKey,
+  entityExists,
   type EntityRole
 } from "../../_lib/storage";
 
@@ -27,9 +28,15 @@ export async function POST(request: Request) {
 
   const existingEntityId = await getEntityIdForPasskey(passkeyId);
   if (existingEntityId) {
-    const role = await getEntityRole(existingEntityId);
-    const publicKey = await getEntityPublicKey(existingEntityId);
-    return NextResponse.json({ entityId: existingEntityId, created: false, role, publicKey });
+    // Verify the entity directory actually exists (handles stale passkey mappings)
+    const exists = await entityExists(existingEntityId);
+    if (exists) {
+      const role = await getEntityRole(existingEntityId);
+      const publicKey = await getEntityPublicKey(existingEntityId);
+      return NextResponse.json({ entityId: existingEntityId, created: false, role, publicKey });
+    }
+    // Entity directory was deleted but mapping remains - treat as non-existent
+    console.warn(`[Init] Stale passkey mapping found for ${passkeyId} -> ${existingEntityId}`);
   }
 
   if (body.createIfMissing === false) {

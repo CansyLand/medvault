@@ -136,6 +136,19 @@ export async function createEntity(): Promise<string> {
   return entityId;
 }
 
+export async function entityExists(entityId: string): Promise<boolean> {
+  const entityDir = path.join(entitiesRoot, entityId);
+  try {
+    const stat = await fs.stat(entityDir);
+    return stat.isDirectory();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw err;
+  }
+}
+
 export async function ensureEntityDir(entityId: string): Promise<void> {
   await ensureDir(path.join(entitiesRoot, entityId));
 }

@@ -47,6 +47,7 @@ import {
   savePublicProfile,
   getEntityPublicKey,
   updateMyPublicKey,
+  ApiError,
   type SharesResponse,
   type EntityRole
 } from "../lib/api";
@@ -769,7 +770,20 @@ export function useVault() {
   // Load shares when signed in
   useEffect(() => {
     if (signedIn && entityId) {
-      getShares().then(setShares).catch(console.error);
+      getShares()
+        .then(setShares)
+        .catch(async (err) => {
+          console.error("Failed to load shares:", err);
+          // If entity not found (404) or unauthorized (401), the session is stale - log out
+          if (err instanceof ApiError && (err.status === 404 || err.status === 401)) {
+            toast.error("Session expired. Please log in again.");
+            await clearSession();
+            setSignedIn(false);
+            setEntityId(null);
+            setEntityRole(null);
+            setEntityPrivateKey(null);
+          }
+        });
     }
   }, [signedIn, entityId]);
 
