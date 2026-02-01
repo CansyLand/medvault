@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon, HeartIcon } from "./Icons";
+import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon } from "./Icons";
 import type { EntityRole } from "../lib/api";
 
 type NavItem = {
@@ -15,24 +15,12 @@ const getNavItems = (isPatient: boolean): NavItem[] => {
   const items: NavItem[] = [
     { id: "records", label: "Medical Records", icon: <DocumentIcon className="w-5 h-5" /> },
     { id: "network", label: "Access Network", icon: <NetworkIcon className="w-5 h-5" /> },
-  ];
-
-  // Add requests section for patients only
-  if (isPatient) {
-    items.push({ 
-      id: "requests", 
-      label: "Data Requests", 
-      icon: <HeartIcon className="w-5 h-5" />,
-      badgeKey: "requests",
-    });
-  }
-
-  items.push(
-    { id: "sharing", label: "Sharing", icon: <ShareIcon className="w-5 h-5" /> },
+    // Data Requests is now integrated into Sharing section as a tab
+    { id: "sharing", label: "Sharing", icon: <ShareIcon className="w-5 h-5" />, badgeKey: isPatient ? "sharing" : undefined },
     { id: "activity", label: "Activity Log", icon: <HistoryIcon className="w-5 h-5" /> },
     { id: "devices", label: "Devices", icon: <DeviceIcon className="w-5 h-5" /> },
     { id: "settings", label: "Settings", icon: <SettingsIcon className="w-5 h-5" /> },
-  );
+  ];
 
   return items;
 };
@@ -71,7 +59,7 @@ export function Sidebar({
   const navItems = getNavItems(isPatient);
 
   const getBadgeCount = (badgeKey: string | undefined): number => {
-    if (badgeKey === "requests") return pendingRequestsCount;
+    if (badgeKey === "sharing") return pendingRequestsCount;
     return 0;
   };
 

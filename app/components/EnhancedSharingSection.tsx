@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import type { SharesResponse, EntityRole } from "../lib/api";
+import { useState, useMemo, useEffect } from "react";
+import type { SharesResponse, EntityRole, DataRequest } from "../lib/api";
 import type { SharedPropertyValue } from "../hooks/useEventStream";
 import { CopyableEntityId } from "./CopyableEntityId";
-import { ShareIcon, ShieldIcon } from "./Icons";
-import { explainMedicalRequest, generateRecordsSummary } from "../services/geminiService";
+import { ShareIcon, ShieldIcon, CheckIcon, HeartIcon } from "./Icons";
+import { explainMedicalRequest } from "../services/geminiService";
 import {
   parseRecordFromProperty,
-  getRecordTypeDisplayName,
   getRecordTypeIconClass,
   PropertyKeyPrefixes,
 } from "../types/medical";
+import { AccessRequestsPanel } from "./AccessRequestsPanel";
+
+type SharingTab = "share" | "receive" | "requests";
 
 interface EnhancedSharingSectionProps {
   properties: Record<string, string>;
@@ -28,6 +30,13 @@ interface EnhancedSharingSectionProps {
   entityRole?: EntityRole | null;
   onTransferRecords?: (targetEntityId: string, propertyNames: string[]) => Promise<unknown>;
   isTransferring?: boolean;
+  // Data requests (patient only)
+  dataRequests?: DataRequest[];
+  pendingRequestsCount?: number;
+  onFulfillRequest?: (requestId: string, sharedPropertyNames: string[]) => Promise<void>;
+  onDeclineRequest?: (requestId: string) => Promise<void>;
+  isFulfillingRequest?: boolean;
+  isDecliningRequest?: boolean;
 }
 
 export function EnhancedSharingSection({
@@ -44,14 +53,31 @@ export function EnhancedSharingSection({
   entityRole,
   onTransferRecords,
   isTransferring,
+  dataRequests = [],
+  pendingRequestsCount = 0,
+  onFulfillRequest,
+  onDeclineRequest,
+  isFulfillingRequest,
+  isDecliningRequest,
 }: EnhancedSharingSectionProps) {
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<SharingTab>("share");
+  
   const [selectedRecords, setSelectedRecords] = useState<string[]>([]); // For sharing
   const [selectedTransferRecords, setSelectedTransferRecords] = useState<string[]>([]); // For transfers
   const [shareCode, setShareCode] = useState("");
-  const [purpose, setPurpose] = useState("");
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
-  const [sharingSummary, setSharingSummary] = useState<string | null>(null);
+  
+  // Collapsible sections state
+  const [outgoingExpanded, setOutgoingExpanded] = useState(false);
+  const [incomingExpanded, setIncomingExpanded] = useState(false);
+  
+  // Copy feedback state
+  const [copied, setCopied] = useState(false);
+  
+  // Countdown for share code expiration
+  const [timeRemaining, setTimeRemaining] = useState<string>("");
   
   // Transfer state (doctor only)
   const [patientEntityId, setPatientEntityId] = useState("");
@@ -59,6 +85,33 @@ export function EnhancedSharingSection({
   
   const isDoctor = entityRole === "doctor";
   const isPatient = entityRole === "patient";
+  
+  // Update countdown timer for share code expiration
+  useEffect(() => {
+    if (!generatedShare) {
+      setTimeRemaining("");
+      return;
+    }
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const remaining = generatedShare.expiresAt - now;
+      
+      if (remaining <= 0) {
+        setTimeRemaining("Expired");
+        return;
+      }
+      
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+    };
+    
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    
+    return () => clearInterval(interval);
+  }, [generatedShare]);
 
   // Parse shareable items from properties (includes profile data for sharing, but not for transfer)
   const shareableItems = useMemo(() => {
@@ -118,6 +171,45 @@ export function EnhancedSharingSection({
   
   // All items are available for sharing (including profile data)
   const records = shareableItems;
+  
+  // Build a map of entity IDs to provider names from sharedData (for displaying who has access)
+  const providerNames = useMemo(() => {
+    const names: Record<string, { name: string; organization?: string }> = {};
+    
+    // Look through sharedData for profile information from providers
+    sharedData.forEach((data) => {
+      if (data.propertyName.startsWith(PropertyKeyPrefixes.PROFILE) && data.value) {
+        try {
+          const profile = JSON.parse(data.value);
+          const name = profile.organizationName 
+            ? `${profile.title || ''} ${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+            : `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
+          
+          if (name) {
+            names[data.sourceEntityId] = {
+              name: name || "Healthcare Provider",
+              organization: profile.organizationName,
+            };
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    });
+    
+    return names;
+  }, [sharedData]);
+  
+  // Helper to get provider display name
+  const getProviderDisplayName = (entityId: string) => {
+    const provider = providerNames[entityId];
+    if (provider) {
+      return provider.organization 
+        ? `${provider.name} (${provider.organization})`
+        : provider.name;
+    }
+    return null;
+  };
 
   // Handlers for sharing records (includes profile data)
   const handleRecordToggle = (key: string) => {
@@ -156,19 +248,26 @@ export function EnhancedSharingSection({
   const handleCreateShare = async () => {
     if (selectedRecords.length === 0) return;
 
-    // Generate AI summary of what's being shared
-    const recordsToShare = selectedRecords.map((key) => ({
-      key,
-      value: properties[key]?.slice(0, 200) || "",
-    }));
-    
-    const summary = await generateRecordsSummary(recordsToShare);
-    setSharingSummary(summary);
-
     // Create shares for each selected record
     for (const key of selectedRecords) {
       await onCreateShare(key);
     }
+  };
+  
+  const handleCopyCode = async () => {
+    if (!generatedShare) return;
+    
+    try {
+      await navigator.clipboard.writeText(generatedShare.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+  
+  const handleShareAnother = () => {
+    setSelectedRecords([]);
   };
 
   const handleAcceptShare = async () => {
@@ -201,6 +300,9 @@ export function EnhancedSharingSection({
     }
   };
 
+  // Calculate total active shares for badge
+  const totalActiveShares = shares.outgoing.length + shares.incoming.length;
+
   return (
     <div className="section">
       <div className="section-header">
@@ -211,8 +313,41 @@ export function EnhancedSharingSection({
         All data remains encrypted end-to-end.
       </p>
 
+      {/* Tab Navigation */}
+      <div className="share-tabs">
+        <button
+          className={`share-tab ${activeTab === "share" ? "active" : ""}`}
+          onClick={() => setActiveTab("share")}
+        >
+          <ShareIcon style={{ width: "16px", height: "16px" }} />
+          Share Records
+        </button>
+        <button
+          className={`share-tab ${activeTab === "receive" ? "active" : ""}`}
+          onClick={() => setActiveTab("receive")}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+            <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+          </svg>
+          Receive Data
+        </button>
+        {isPatient && (
+          <button
+            className={`share-tab ${activeTab === "requests" ? "active" : ""}`}
+            onClick={() => setActiveTab("requests")}
+          >
+            <HeartIcon style={{ width: "16px", height: "16px" }} />
+            Requests
+            {pendingRequestsCount > 0 && (
+              <span className="tab-badge">{pendingRequestsCount}</span>
+            )}
+          </button>
+        )}
+      </div>
+
       {/* Doctor: Transfer Records to Patient */}
-      {isDoctor && (
+      {isDoctor && activeTab === "share" && (
         <div className="subsection">
           <h3>Transfer Records to Patient</h3>
           <p className="subsection-desc">
@@ -345,207 +480,262 @@ export function EnhancedSharingSection({
       )}
 
       {/* Patient/General: Share Records */}
-      <div className="subsection">
-        <h3>{isPatient ? "Share Your Medical Records" : "Share Medical Records"}</h3>
-        <p className="subsection-desc">
-          {isPatient 
-            ? "Share your records with healthcare providers. You control who has access and can revoke at any time."
-            : "Select which records to share. Each share code is time-limited and can only be used once."}
-        </p>
-
-        {records.length === 0 ? (
-          <div
-            style={{
-              padding: "1.5rem",
-              background: "var(--bg-tertiary)",
-              borderRadius: "12px",
-              textAlign: "center",
-              color: "var(--text-muted)",
-            }}
-          >
-            No records to share. Upload medical documents first.
-          </div>
-        ) : (
-          <>
-            {/* Record Selection */}
-            <div
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: "12px",
-                overflow: "hidden",
-                marginBottom: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  background: "var(--bg-tertiary)",
-                  borderBottom: "1px solid var(--border)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                  Select Records ({selectedRecords.length}/{records.length})
-                </span>
-                <button className="small secondary" onClick={handleSelectAll}>
-                  {selectedRecords.length === records.length ? "Deselect All" : "Select All"}
+      {activeTab === "share" && (
+        <div className="subsection">
+          {/* Success State - Prominent Share Code Display */}
+          {generatedShare ? (
+            <div className="share-success-card">
+              <div className="share-success-header">
+                <div className="share-success-icon">
+                  <CheckIcon style={{ width: "24px", height: "24px" }} />
+                </div>
+                <h3>Share Code Ready</h3>
+                <p>Give this code to your healthcare provider</p>
+              </div>
+              
+              <div className="share-code-display">
+                <code>{generatedShare.code}</code>
+                <button 
+                  className={`copy-button ${copied ? "copied" : ""}`}
+                  onClick={handleCopyCode}
+                >
+                  {copied ? (
+                    <>
+                      <CheckIcon style={{ width: "16px", height: "16px" }} />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                      Copy
+                    </>
+                  )}
                 </button>
               </div>
-              <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                {records.map((record) => {
-                  const isProfile = record.isProfile;
-                  return (
-                    <label
-                      key={record.key}
+              
+              <div className="share-code-meta">
+                <span className={`share-code-timer ${timeRemaining === "Expired" ? "expired" : ""}`}>
+                  {timeRemaining === "Expired" ? "Code expired" : `Expires in ${timeRemaining}`}
+                </span>
+              </div>
+              
+              <button 
+                className="secondary"
+                onClick={handleShareAnother}
+                style={{ width: "100%", marginTop: "1rem" }}
+              >
+                Share Another Record
+              </button>
+            </div>
+          ) : (
+            <>
+              <h3>{isPatient ? "Share Your Medical Records" : "Share Medical Records"}</h3>
+              <p className="subsection-desc">
+                {isPatient 
+                  ? "Share your records with healthcare providers. You control who has access and can revoke at any time."
+                  : "Select which records to share. Each share code is time-limited and can only be used once."}
+              </p>
+
+              {records.length === 0 ? (
+                <div
+                  style={{
+                    padding: "1.5rem",
+                    background: "var(--bg-tertiary)",
+                    borderRadius: "12px",
+                    textAlign: "center",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  No records to share. Upload medical documents first.
+                </div>
+              ) : (
+                <>
+                  {/* Record Selection */}
+                  <div
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.75rem",
                         padding: "0.75rem 1rem",
+                        background: "var(--bg-tertiary)",
                         borderBottom: "1px solid var(--border)",
-                        cursor: "pointer",
-                        background: selectedRecords.includes(record.key)
-                          ? isProfile ? "rgba(124, 58, 237, 0.1)" : "var(--mint-pale)"
-                          : "transparent",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedRecords.includes(record.key)}
-                        onChange={() => handleRecordToggle(record.key)}
-                        style={{ width: "18px", height: "18px", accentColor: isProfile ? "var(--lavender-dark)" : "var(--teal-deep)" }}
-                      />
-                      {isProfile ? (
-                        <div
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            borderRadius: "8px",
-                            background: "linear-gradient(135deg, var(--lavender) 0%, var(--lavender-secondary) 100%)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "0.85rem",
-                          }}
-                        >
-                          👤
-                        </div>
-                      ) : (
-                        <div
-                          className={`record-type-icon ${getRecordTypeIconClass(record.type as any)}`}
-                          style={{ width: "32px", height: "32px", fontSize: "0.65rem" }}
-                        >
-                          {record.type.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontWeight: 500 }}>{record.title}</span>
-                        {isProfile && (
-                          <span style={{ fontSize: "0.75rem", color: "var(--lavender-dark)" }}>
-                            Personal Master Data
-                          </span>
-                        )}
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
+                      <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                        Select Records ({selectedRecords.length}/{records.length})
+                      </span>
+                      <button className="small secondary" onClick={handleSelectAll}>
+                        {selectedRecords.length === records.length ? "Deselect All" : "Select All"}
+                      </button>
+                    </div>
+                    <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                      {records.map((record) => {
+                        const isProfile = record.isProfile;
+                        return (
+                          <label
+                            key={record.key}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.75rem",
+                              padding: "0.75rem 1rem",
+                              borderBottom: "1px solid var(--border)",
+                              cursor: "pointer",
+                              background: selectedRecords.includes(record.key)
+                                ? isProfile ? "rgba(124, 58, 237, 0.1)" : "var(--mint-pale)"
+                                : "transparent",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedRecords.includes(record.key)}
+                              onChange={() => handleRecordToggle(record.key)}
+                              style={{ width: "18px", height: "18px", accentColor: isProfile ? "var(--lavender-dark)" : "var(--teal-deep)" }}
+                            />
+                            {isProfile ? (
+                              <div
+                                style={{
+                                  width: "32px",
+                                  height: "32px",
+                                  borderRadius: "8px",
+                                  background: "linear-gradient(135deg, var(--lavender) 0%, var(--lavender-secondary) 100%)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                👤
+                              </div>
+                            ) : (
+                              <div
+                                className={`record-type-icon ${getRecordTypeIconClass(record.type as any)}`}
+                                style={{ width: "32px", height: "32px", fontSize: "0.65rem" }}
+                              >
+                                {record.type.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <span style={{ fontWeight: 500 }}>{record.title}</span>
+                              {isProfile && (
+                                <span style={{ fontSize: "0.75rem", color: "var(--lavender-dark)" }}>
+                                  Personal Master Data
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-            {/* Purpose Input */}
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 500, marginBottom: "0.5rem" }}>
-                Purpose (optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., Cardiology consultation, Insurance claim..."
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-                disabled={disabled}
-              />
-            </div>
-
-            {/* Share Button */}
-            <button
-              onClick={handleCreateShare}
-              disabled={disabled || selectedRecords.length === 0 || isCreating}
-              style={{ width: "100%" }}
-            >
-              {isCreating
-                ? "Generating Share Codes..."
-                : `Share ${selectedRecords.length} Record${selectedRecords.length !== 1 ? "s" : ""}`}
-            </button>
-
-            {/* Sharing Summary */}
-            {sharingSummary && (
-              <div
-                style={{
-                  marginTop: "1rem",
-                  padding: "1rem",
-                  background: "var(--mint-pale)",
-                  borderRadius: "12px",
-                  border: "1px solid var(--mint-secondary)",
-                }}
-              >
-                <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-                  <strong style={{ color: "var(--teal-deep)" }}>AI Summary:</strong> {sharingSummary}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Generated Share Code */}
-        {generatedShare && (
-          <div className="share-code-box" style={{ marginTop: "1rem" }}>
-            <span className="share-code-label">Share code for {generatedShare.propertyName}:</span>
-            <code className="share-code">{generatedShare.code}</code>
-            <span className="share-code-expires">
-              Expires at {new Date(generatedShare.expiresAt).toLocaleTimeString()}
-            </span>
-          </div>
-        )}
-      </div>
+                  {/* Share Button */}
+                  <button
+                    onClick={handleCreateShare}
+                    disabled={disabled || selectedRecords.length === 0 || isCreating}
+                    style={{ width: "100%" }}
+                  >
+                    {isCreating
+                      ? "Generating Share Code..."
+                      : `Generate Share Code${selectedRecords.length > 0 ? ` (${selectedRecords.length})` : ""}`}
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Accept a Share */}
-      <div className="subsection">
-        <h3>Receive Shared Data</h3>
-        <p className="subsection-desc">
-          Enter a share code from a healthcare provider to receive their shared data.
-        </p>
-        <div className="share-form">
-          <input
-            type="text"
-            placeholder="Enter share code..."
-            value={shareCode}
-            onChange={(e) => setShareCode(e.target.value)}
-            disabled={disabled}
-          />
-          <button
-            onClick={handleAcceptShare}
-            disabled={disabled || !shareCode.trim() || isAccepting}
-          >
-            {isAccepting ? "Accepting..." : "Accept Share"}
-          </button>
-        </div>
-      </div>
-
-      {/* Patient Access Control / Outgoing Shares */}
-      {shares.outgoing.length > 0 && (
+      {activeTab === "receive" && (
         <div className="subsection">
-          <h3>{isPatient ? "Who Has Access to Your Data" : "Data You're Sharing"}</h3>
-          {isPatient && (
-            <p className="subsection-desc">
-              These healthcare providers currently have access to your data.
-              You are in full control — revoke access at any time.
-            </p>
-          )}
+          <h3>Receive Shared Data</h3>
+          <p className="subsection-desc">
+            Enter a share code from a healthcare provider to receive their shared data.
+          </p>
+          <div className="receive-share-form">
+            <input
+              type="text"
+              placeholder="Enter share code (e.g., 2MXL4D4JKQZS)"
+              value={shareCode}
+              onChange={(e) => setShareCode(e.target.value.toUpperCase())}
+              disabled={disabled}
+              style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}
+            />
+            <button
+              onClick={handleAcceptShare}
+              disabled={disabled || !shareCode.trim() || isAccepting}
+              style={{ width: "100%" }}
+            >
+              {isAccepting ? "Accepting..." : "Accept Share Code"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Data Requests Tab (Patient only) */}
+      {activeTab === "requests" && isPatient && onFulfillRequest && onDeclineRequest && (
+        <AccessRequestsPanel
+          requests={dataRequests}
+          myRecords={properties}
+          onFulfill={onFulfillRequest}
+          onDecline={onDeclineRequest}
+          isFulfilling={isFulfillingRequest}
+          isDeclining={isDecliningRequest}
+        />
+      )}
+
+      {/* Patient Access Control / Outgoing Shares - Collapsible */}
+      {shares.outgoing.length > 0 && (
+        <div className="collapsible-section">
+          <button 
+            className="collapsible-header"
+            onClick={() => setOutgoingExpanded(!outgoingExpanded)}
+          >
+            <div className="collapsible-title">
+              <svg 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{ 
+                  transform: outgoingExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease"
+                }}
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              <span>{isPatient ? "Who Has Access to Your Data" : "Data You're Sharing"}</span>
+            </div>
+            <span className="collapsible-badge">{shares.outgoing.length}</span>
+          </button>
           
-          {/* Group by record for patients */}
-          {isPatient ? (
+          {outgoingExpanded && (
+            <div className="collapsible-content">
+              {isPatient && (
+                <p className="subsection-desc" style={{ marginBottom: "1rem" }}>
+                  These healthcare providers currently have access to your data.
+                  You are in full control — revoke access at any time.
+                </p>
+              )}
+          
+              {/* Group by record for patients */}
+              {isPatient ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {/* Group outgoing shares by propertyName */}
               {Array.from(new Set(shares.outgoing.map(s => s.propertyName))).map(propertyName => {
@@ -623,32 +813,42 @@ export function EnhancedSharingSection({
                       </span>
                     </div>
                     <div>
-                      {accessors.map(share => (
-                        <div
-                          key={share.targetEntityId}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "0.75rem 1rem",
-                            borderBottom: "1px solid var(--border)",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <span style={{ fontSize: "0.9rem" }}>👨‍⚕️</span>
-                            <CopyableEntityId entityId={share.targetEntityId} short />
-                          </div>
-                          <button
-                            className="small danger"
-                            onClick={() =>
-                              onRemoveShare({ targetEntityId: share.targetEntityId, propertyName: share.propertyName })
-                            }
-                            disabled={disabled}
+                      {accessors.map(share => {
+                        const providerName = getProviderDisplayName(share.targetEntityId);
+                        return (
+                          <div
+                            key={share.targetEntityId}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.75rem 1rem",
+                              borderBottom: "1px solid var(--border)",
+                            }}
                           >
-                            Revoke
-                          </button>
-                        </div>
-                      ))}
+                            <div 
+                              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                              title={`Entity ID: ${share.targetEntityId}`}
+                            >
+                              <span style={{ fontSize: "0.9rem" }}>👨‍⚕️</span>
+                              {providerName ? (
+                                <span style={{ fontWeight: 500 }}>{providerName}</span>
+                              ) : (
+                                <CopyableEntityId entityId={share.targetEntityId} short />
+                              )}
+                            </div>
+                            <button
+                              className="small danger"
+                              onClick={() =>
+                                onRemoveShare({ targetEntityId: share.targetEntityId, propertyName: share.propertyName })
+                              }
+                              disabled={disabled}
+                            >
+                              Revoke
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -659,6 +859,7 @@ export function EnhancedSharingSection({
               {shares.outgoing.map((share) => {
                 const isProfileShare = share.propertyName.startsWith(PropertyKeyPrefixes.PROFILE);
                 const record = !isProfileShare ? parseRecordFromProperty(properties[share.propertyName] || "") : null;
+                const recipientName = getProviderDisplayName(share.targetEntityId);
                 
                 // Parse profile data for display
                 let profileDisplayName = "Practice Information";
@@ -677,8 +878,12 @@ export function EnhancedSharingSection({
                       <span className="share-property" style={isProfileShare ? { color: "var(--lavender-dark)" } : undefined}>
                         {isProfileShare ? `👤 ${profileDisplayName}` : (record?.title || share.propertyName)}
                       </span>
-                      <span className="share-target">
-                        → <CopyableEntityId entityId={share.targetEntityId} short />
+                      <span className="share-target" title={`Entity ID: ${share.targetEntityId}`}>
+                        → {recipientName ? (
+                          <span style={{ fontWeight: 500 }}>{recipientName}</span>
+                        ) : (
+                          <CopyableEntityId entityId={share.targetEntityId} short />
+                        )}
                       </span>
                     </div>
                     <button
@@ -694,15 +899,44 @@ export function EnhancedSharingSection({
                 );
               })}
             </ul>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {/* Incoming Shares */}
+      {/* Incoming Shares - Collapsible */}
       {shares.incoming.length > 0 && (
-        <div className="subsection">
-          <h3>Data Shared With You</h3>
-          <ul className="share-list incoming">
+        <div className="collapsible-section">
+          <button 
+            className="collapsible-header"
+            onClick={() => setIncomingExpanded(!incomingExpanded)}
+          >
+            <div className="collapsible-title">
+              <svg 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{ 
+                  transform: incomingExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease"
+                }}
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              <span>Data Shared With You</span>
+            </div>
+            <span className="collapsible-badge">{shares.incoming.length}</span>
+          </button>
+          
+          {incomingExpanded && (
+            <div className="collapsible-content">
+              <ul className="share-list incoming">
             {shares.incoming.map((share) => {
               const data = sharedData.find(
                 (s) => s.sourceEntityId === share.sourceEntityId && s.propertyName === share.propertyName
@@ -724,11 +958,17 @@ export function EnhancedSharingSection({
                 } catch { /* ignore parse errors */ }
               }
 
+              const sourceName = getProviderDisplayName(share.sourceEntityId);
+              
               return (
                 <li key={`${share.sourceEntityId}-${share.propertyName}`} className="share-item">
                   <div className="share-info">
-                    <span className="share-source">
-                      <CopyableEntityId entityId={share.sourceEntityId} short />
+                    <span className="share-source" title={`Entity ID: ${share.sourceEntityId}`}>
+                      {sourceName ? (
+                        <span style={{ fontWeight: 500 }}>{sourceName}</span>
+                      ) : (
+                        <CopyableEntityId entityId={share.sourceEntityId} short />
+                      )}
                     </span>
                     <span className="share-property" style={isProfileShare ? { color: "var(--lavender-dark)" } : undefined}>
                       {isProfileShare ? (
@@ -796,6 +1036,8 @@ export function EnhancedSharingSection({
               >
                 Dismiss
               </button>
+            </div>
+              )}
             </div>
           )}
         </div>

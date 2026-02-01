@@ -14,7 +14,6 @@ import { DevicesSection } from "./components/DevicesSection";
 import { SettingsSection } from "./components/SettingsSection";
 import { AccessNetworkFlow } from "./components/AccessNetworkFlow";
 import { ActivityLogSection } from "./components/ActivityLogSection";
-import { AccessRequestsPanel } from "./components/AccessRequestsPanel";
 import { ChatAssistant } from "./components/ChatAssistant";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { PropertyKeyPrefixes, getDisplayName } from "./types/medical";
@@ -222,26 +221,6 @@ export default function HomePage() {
             </div>
           )}
 
-          {activeSection === "requests" && vault.entityRole === "patient" && (
-            <AccessRequestsPanel
-              requests={dataRequests.incomingRequests}
-              myRecords={vault.properties}
-              onFulfill={async (requestId, sharedPropertyNames) => {
-                // Create shares for the selected records
-                for (const propertyName of sharedPropertyNames) {
-                  await vault.createShareInvite(propertyName);
-                }
-                // Mark the request as fulfilled
-                await dataRequests.fulfillRequest(requestId, sharedPropertyNames);
-              }}
-              onDecline={async (requestId) => {
-                await dataRequests.declineRequest(requestId);
-              }}
-              isFulfilling={dataRequests.isFulfillingRequest}
-              isDeclining={dataRequests.isDecliningRequest}
-            />
-          )}
-
           {activeSection === "sharing" && (
             <EnhancedSharingSection
               properties={vault.properties}
@@ -257,6 +236,22 @@ export default function HomePage() {
               entityRole={vault.entityRole}
               onTransferRecords={vault.transferRecords}
               isTransferring={vault.isTransferring}
+              // Data requests (patient only)
+              dataRequests={dataRequests.incomingRequests}
+              pendingRequestsCount={dataRequests.pendingCount}
+              onFulfillRequest={async (requestId, sharedPropertyNames) => {
+                // Create shares for the selected records
+                for (const propertyName of sharedPropertyNames) {
+                  await vault.createShareInvite(propertyName);
+                }
+                // Mark the request as fulfilled
+                await dataRequests.fulfillRequest(requestId, sharedPropertyNames);
+              }}
+              onDeclineRequest={async (requestId) => {
+                await dataRequests.declineRequest(requestId);
+              }}
+              isFulfillingRequest={dataRequests.isFulfillingRequest}
+              isDecliningRequest={dataRequests.isDecliningRequest}
             />
           )}
 
