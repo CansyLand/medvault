@@ -489,36 +489,139 @@ export function AccessNetworkFlow({
     return () => window.removeEventListener("deleteEdge", handleDeleteEdge as EventListener);
   }, [onEdgeDelete]);
 
+  // Group outgoing shares by target entity for the access list
+  const outgoingSharesByEntity = useMemo(() => {
+    if (!shares?.outgoing) return [];
+    
+    const grouped: Record<string, typeof shares.outgoing> = {};
+    shares.outgoing.forEach((share) => {
+      if (!grouped[share.targetEntityId]) {
+        grouped[share.targetEntityId] = [];
+      }
+      grouped[share.targetEntityId].push(share);
+    });
+    
+    return Object.entries(grouped);
+  }, [shares?.outgoing]);
+
+  // Helper to get entity display name
+  const getEntityDisplayName = (entityId: string) => {
+    const profile = entityProfiles[entityId];
+    if (profile) {
+      return profile.displayName || `Entity ${entityId.slice(0, 8)}...`;
+    }
+    return `Entity ${entityId.slice(0, 8)}...`;
+  };
+
+  // Helper to get entity subtitle (organization name)
+  const getEntitySubtitle = (entityId: string) => {
+    const profile = entityProfiles[entityId];
+    return profile?.organizationName || profile?.subtitle;
+  };
+
+  // Helper to get record title from property name
+  const getRecordTitle = (propertyName: string) => {
+    // Simple extraction - the full property name usually contains the title
+    if (propertyName.startsWith("record:")) {
+      const parts = propertyName.split(":");
+      return parts[2] || propertyName;
+    }
+    if (propertyName.startsWith("profile:")) {
+      return "Personal Master Data";
+    }
+    return propertyName;
+  };
+
   return (
-    <div
-      className={className}
-      style={{
-        width: '100%',
-        height: '500px',
-        background: 'var(--bg-tertiary)',
-        borderRadius: '16px',
-        border: '1px solid var(--border)',
-      }}
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onEdgeClick={(_, edge) => onEdgeClick?.(edge)}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        style={{ background: 'transparent' }}
+    <>
+      <div
+        className={className}
+        style={{
+          width: '100%',
+          height: '500px',
+          background: 'var(--bg-tertiary)',
+          borderRadius: '16px',
+          border: '1px solid var(--border)',
+        }}
       >
-        <Controls />
-        <MiniMap
-          nodeColor={(node) => node.type === 'center' ? 'var(--mint)' : 'var(--bg-primary)'}
-          maskColor="rgba(255, 255, 255, 0.8)"
-        />
-        <Background color="var(--border)" gap={20} />
-      </ReactFlow>
-    </div>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onEdgeClick={(_, edge) => onEdgeClick?.(edge)}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          style={{ background: 'transparent' }}
+        >
+          <Controls />
+          <MiniMap
+            nodeColor={(node) => node.type === 'center' ? 'var(--mint)' : 'var(--bg-primary)'}
+            maskColor="rgba(255, 255, 255, 0.8)"
+          />
+          <Background color="var(--border)" gap={20} />
+        </ReactFlow>
+      </div>
+
+      {/* Access List - Detailed View */}
+      {outgoingSharesByEntity.length > 0 && (
+        <div className="access-list-section">
+          <h3>Who Has Access to Your Data</h3>
+          <p className="subsection-desc">
+            These entities currently have access to your data. 
+            You can revoke access at any time.
+          </p>
+          
+          <div className="access-list">
+            {outgoingSharesByEntity.map(([entityId, entityShares]) => {
+              const entityName = getEntityDisplayName(entityId);
+              const entitySubtitle = getEntitySubtitle(entityId);
+              
+              return (
+                <div key={entityId} className="access-list-item">
+                  <div className="access-list-header">
+                    <div className="entity-info">
+                      <span className="entity-icon">👨‍⚕️</span>
+                      <div className="entity-details">
+                        <span className="entity-name" title={`Entity ID: ${entityId}`}>
+                          {entityName}
+                        </span>
+                        {entitySubtitle && (
+                          <span className="entity-subtitle">{entitySubtitle}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="share-count">
+                      {entityShares.length} record{entityShares.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  
+                  <div className="shared-records">
+                    {entityShares.map((share) => (
+                      <div key={share.propertyName} className="shared-record">
+                        <span className="record-name">{getRecordTitle(share.propertyName)}</span>
+                        {onRevokeShare && (
+                          <button
+                            className="small danger"
+                            onClick={() => onRevokeShare({ 
+                              targetEntityId: share.targetEntityId, 
+                              propertyName: share.propertyName 
+                            })}
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
