@@ -18,6 +18,25 @@ export type MedicalRecordType =
   | "document"
   | "other";
 
+// Upload method for data lineage
+export type UploadMethod = "manual_upload" | "shared" | "api";
+
+// Modification history entry
+export interface ModificationHistoryEntry {
+  action: "created" | "renamed" | "reclassified";
+  timestamp: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
+// AI processing details for data lineage
+export interface ProcessingDetails {
+  aiModel: string;
+  extractedAt: string;
+  confidence?: number;
+  originalType?: string;
+}
+
 // Base medical record structure (stored as JSON in property value)
 export interface MedicalRecord {
   id: string;
@@ -30,6 +49,14 @@ export interface MedicalRecord {
   structuredData: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  
+  // Data Lineage
+  sourceFileName?: string;
+  uploadMethod?: UploadMethod;
+  uploadedBy?: string;      // Entity ID of uploader
+  uploaderName?: string;    // Display name of uploader (e.g., "Dr. Smith")
+  processingDetails?: ProcessingDetails;
+  modificationHistory?: ModificationHistoryEntry[];
 }
 
 // Uploaded document with PDF data

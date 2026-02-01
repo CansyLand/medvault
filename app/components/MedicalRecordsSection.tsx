@@ -8,6 +8,7 @@ import { PatientListPanel } from "./PatientListPanel";
 import { PatientRecordsView } from "./PatientRecordsView";
 import {
   type MedicalRecord,
+  type MedicalRecordType,
   type ProviderProfile,
   parseRecordFromProperty,
   serializeRecordForProperty,
@@ -27,6 +28,9 @@ interface MedicalRecordsSectionProps {
   onRenameRecord?: (key: string, oldName: string, newName: string) => void;
   disabled: boolean;
   entityRole?: EntityRole | null;
+  // For data lineage - who is uploading
+  entityId?: string;
+  uploaderName?: string;
   // For doctor's patient view
   shares?: SharesResponse;
   sharedData?: SharedPropertyValue[];
@@ -45,6 +49,8 @@ export function MedicalRecordsSection({
   onRenameRecord,
   disabled,
   entityRole,
+  entityId,
+  uploaderName,
   shares,
   sharedData,
   allPatients,
@@ -58,6 +64,9 @@ export function MedicalRecordsSection({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  
+  // Collapsed state for record type groups
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<MedicalRecordType>>(new Set());
   
   // Doctor-specific state
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -146,13 +155,56 @@ export function MedicalRecordsSection({
       }
     });
 
-    // Sort by date (newest first)
+    // Sort by creation date (newest first)
     return result.sort((a, b) => {
-      const dateA = a.record.date || a.record.createdAt;
-      const dateB = b.record.date || b.record.createdAt;
-      return dateB.localeCompare(dateA);
+      return b.record.createdAt.localeCompare(a.record.createdAt);
     });
   }, [properties]);
+
+  // Group records by type
+  const groupedRecords = useMemo(() => {
+    const groups: Partial<Record<MedicalRecordType, typeof records>> = {};
+    
+    records.forEach((item) => {
+      const type = item.record.type;
+      if (!groups[type]) {
+        groups[type] = [];
+      }
+      groups[type]!.push(item);
+    });
+    
+    return groups;
+  }, [records]);
+
+  // Get ordered list of types that have records
+  const orderedTypes = useMemo(() => {
+    const typeOrder: MedicalRecordType[] = [
+      "lab_report",
+      "imaging",
+      "prescription",
+      "clinical_notes",
+      "insurance",
+      "immunization",
+      "allergy",
+      "vital_signs",
+      "document",
+      "other",
+    ];
+    return typeOrder.filter((type) => groupedRecords[type] && groupedRecords[type]!.length > 0);
+  }, [groupedRecords]);
+
+  // Toggle group collapse state
+  const toggleGroup = (type: MedicalRecordType) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  };
 
   // Count non-record properties (simple key-value pairs), excluding profile data
   const simpleProperties = useMemo(() => {
@@ -208,10 +260,22 @@ export function MedicalRecordsSection({
     }
 
     const oldName = record.title;
+    const now = new Date().toISOString();
+    
+    // Create updated record with rename tracked in modification history
     const updatedRecord: MedicalRecord = {
       ...record,
       title: newName,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
+      modificationHistory: [
+        ...(record.modificationHistory || []),
+        {
+          action: "renamed",
+          timestamp: now,
+          previousValue: oldName,
+          newValue: newName,
+        },
+      ],
     };
 
     onSetProperty(key, serializeRecordForProperty(updatedRecord));
@@ -314,9 +378,14 @@ export function MedicalRecordsSection({
       </p>
 
       {/* Document Upload */}
-      <DocumentUpload onUpload={handleUpload} disabled={disabled} />
+      <DocumentUpload 
+        onUpload={handleUpload} 
+        disabled={disabled} 
+        uploadedBy={entityId}
+        uploaderName={uploaderName}
+      />
 
-      {/* Records List */}
+      {/* Records List - Grouped by Type */}
       <div style={{ marginTop: "1.5rem" }}>
         {records.length === 0 ? (
           <div className="empty-state">
@@ -325,76 +394,147 @@ export function MedicalRecordsSection({
             <span className="empty-hint">Upload a PDF to get started</span>
           </div>
         ) : (
-          <ul className="property-list">
-            {records.map(({ key, record, pdfKey }) => {
-              const isEditing = editingKey === key;
+          <div className="record-groups">
+            {orderedTypes.map((type) => {
+              const typeRecords = groupedRecords[type] || [];
+              const isCollapsed = collapsedGroups.has(type);
               
               return (
-                <li
-                  key={key}
-                  className="property-item"
-                  onClick={() => !isEditing && handleRecordClick(record, pdfKey)}
-                  style={{ cursor: isEditing ? "default" : "pointer" }}
-                >
-                  <div 
-                    className={`record-type-icon ${getRecordTypeIconClass(record.type)}`}
-                    style={{ width: '24px', height: '24px', fontSize: '0.6rem', borderRadius: '6px' }}
+                <div key={type} className="record-group" style={{ marginBottom: "1rem" }}>
+                  {/* Group Header */}
+                  <button
+                    className="record-group-header"
+                    onClick={() => toggleGroup(type)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      width: "100%",
+                      padding: "0.75rem 1rem",
+                      background: "var(--bg-tertiary)",
+                      border: "1px solid var(--border)",
+                      borderRadius: isCollapsed ? "12px" : "12px 12px 0 0",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
                   >
-                    {getRecordTypeDisplayName(record.type).slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="property-content">
-                    {isEditing ? (
-                      <div className="rename-form" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          ref={editInputRef}
-                          type="text"
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(e, key, record)}
-                          onBlur={() => saveRename(key, record)}
-                          className="rename-input"
-                          placeholder="Enter new name..."
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <span className="property-key">{record.title}</span>
-                        <span className="property-value">
-                          {record.summary?.slice(0, 100)}
-                          {record.summary && record.summary.length > 100 ? "..." : ""}
-                        </span>
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          {record.date || "No date"} • {record.provider || "Unknown provider"}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <div className="property-actions">
-                    {!isEditing && (
-                      <button
-                        className="small secondary"
-                        onClick={(e) => startRenaming(key, record.title, e)}
-                        disabled={disabled}
-                        title="Rename"
-                      >
-                        Rename
-                      </button>
-                    )}
-                    <button
-                      className="small danger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(key, pdfKey);
+                    <span
+                      style={{
+                        transition: "transform 0.15s ease",
+                        transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                        fontSize: "0.75rem",
+                        color: "var(--text-muted)",
                       }}
-                      disabled={disabled || isEditing}
                     >
-                      Delete
-                    </button>
-                  </div>
-                </li>
+                      ▼
+                    </span>
+                    <div 
+                      className={`record-type-icon ${getRecordTypeIconClass(type)}`}
+                      style={{ width: '28px', height: '28px', fontSize: '0.7rem', borderRadius: '8px' }}
+                    >
+                      {getRecordTypeDisplayName(type).slice(0, 2).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 600, flex: 1, textAlign: "left" }}>
+                      {getRecordTypeDisplayName(type)}
+                    </span>
+                    <span
+                      style={{
+                        background: "var(--mint)",
+                        color: "var(--teal-deep)",
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "12px",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {typeRecords.length}
+                    </span>
+                  </button>
+                  
+                  {/* Group Content */}
+                  {!isCollapsed && (
+                    <ul
+                      className="property-list"
+                      style={{
+                        borderRadius: "0 0 12px 12px",
+                        border: "1px solid var(--border)",
+                        borderTop: "none",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {typeRecords.map(({ key, record, pdfKey }) => {
+                        const isEditing = editingKey === key;
+                        
+                        return (
+                          <li
+                            key={key}
+                            className="property-item"
+                            onClick={() => !isEditing && handleRecordClick(record, pdfKey)}
+                            style={{ 
+                              cursor: isEditing ? "default" : "pointer",
+                              borderRadius: 0,
+                              border: "none",
+                              borderBottom: "1px solid var(--border)",
+                            }}
+                          >
+                            <div className="property-content" style={{ paddingLeft: "0.5rem" }}>
+                              {isEditing ? (
+                                <div className="rename-form" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    ref={editInputRef}
+                                    type="text"
+                                    value={editingName}
+                                    onChange={(e) => setEditingName(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, key, record)}
+                                    onBlur={() => saveRename(key, record)}
+                                    className="rename-input"
+                                    placeholder="Enter new name..."
+                                  />
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="property-key">{record.title}</span>
+                                  <span className="property-value">
+                                    {record.summary?.slice(0, 100)}
+                                    {record.summary && record.summary.length > 100 ? "..." : ""}
+                                  </span>
+                                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                    {record.date || "No date"} • {record.provider || "Unknown provider"}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <div className="property-actions">
+                              {!isEditing && (
+                                <button
+                                  className="small secondary"
+                                  onClick={(e) => startRenaming(key, record.title, e)}
+                                  disabled={disabled}
+                                  title="Rename"
+                                >
+                                  Rename
+                                </button>
+                              )}
+                              <button
+                                className="small danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(key, pdfKey);
+                                }}
+                                disabled={disabled || isEditing}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </div>
 

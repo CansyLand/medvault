@@ -192,6 +192,8 @@ export default function HomePage() {
               onRenameRecord={vault.renameRecord}
               disabled={vault.isBusy || !vault.connected}
               entityRole={vault.entityRole}
+              entityId={vault.entityId}
+              uploaderName={vault.userProfile ? getDisplayName(vault.userProfile) : undefined}
               shares={vault.shares}
               sharedData={vault.sharedData}
               allPatients={vault.allPatients}

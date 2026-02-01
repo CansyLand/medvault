@@ -15,9 +15,12 @@ interface DocumentUploadProps {
   onUpload: (recordKey: string, recordValue: string, pdfKey?: string, pdfValue?: string) => void;
   disabled: boolean;
   compact?: boolean;
+  // For data lineage - who is uploading
+  uploadedBy?: string;
+  uploaderName?: string;
 }
 
-export function DocumentUpload({ onUpload, disabled, compact = false }: DocumentUploadProps) {
+export function DocumentUpload({ onUpload, disabled, compact = false, uploadedBy, uploaderName }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,8 +62,9 @@ export function DocumentUpload({ onUpload, disabled, compact = false }: Document
       };
 
       const recordType = typeMap[extractedData.type] || "document";
+      const now = new Date().toISOString();
 
-      // Create medical record
+      // Create medical record with data lineage
       const record: MedicalRecord = {
         id: recordId,
         type: recordType,
@@ -70,8 +74,22 @@ export function DocumentUpload({ onUpload, disabled, compact = false }: Document
         summary: extractedData.summary,
         content: extractedData.content,
         structuredData: extractedData.structuredFields || {},
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
+        // Data Lineage
+        sourceFileName: file.name,
+        uploadMethod: "manual_upload",
+        uploadedBy: uploadedBy,
+        uploaderName: uploaderName,
+        processingDetails: {
+          aiModel: "gemini-2.0-flash",
+          extractedAt: now,
+          originalType: extractedData.type,
+        },
+        modificationHistory: [{
+          action: "created",
+          timestamp: now,
+        }],
       };
 
       // Store both the record metadata and PDF data

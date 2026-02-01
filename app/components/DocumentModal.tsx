@@ -123,6 +123,167 @@ export function DocumentModal({ record, pdfBase64, isOpen, onClose }: DocumentMo
             </div>
           )}
 
+          {/* Data Lineage */}
+          {(record.sourceFileName || record.processingDetails || record.modificationHistory) && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Data Lineage
+              </h3>
+              <div style={{ 
+                padding: '1rem', 
+                background: 'var(--bg-tertiary)', 
+                borderRadius: '12px',
+                fontSize: '0.9rem',
+              }}>
+                {/* Source Info */}
+                {record.sourceFileName && (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    padding: '0.5rem 0',
+                    borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Source File</span>
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
+                      {record.sourceFileName}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Upload Method */}
+                {record.uploadMethod && (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    padding: '0.5rem 0',
+                    borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Upload Method</span>
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
+                      {record.uploadMethod === 'manual_upload' ? 'Manual Upload' : 
+                       record.uploadMethod === 'shared' ? 'Shared' : 
+                       record.uploadMethod === 'api' ? 'API' : record.uploadMethod}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Uploaded By */}
+                {record.uploaderName && (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    padding: '0.5rem 0',
+                    borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Uploaded By</span>
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
+                      {record.uploaderName}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Created At */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px solid var(--border)',
+                }}>
+                  <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Created</span>
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
+                    {new Date(record.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                
+                {/* AI Processing Details */}
+                {record.processingDetails && (
+                  <>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between',
+                      padding: '0.5rem 0',
+                      borderBottom: '1px solid var(--border)',
+                    }}>
+                      <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>AI Model</span>
+                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
+                        {record.processingDetails.aiModel}
+                      </span>
+                    </div>
+                    {record.processingDetails.originalType && (
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between',
+                        padding: '0.5rem 0',
+                        borderBottom: '1px solid var(--border)',
+                      }}>
+                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>AI Classification</span>
+                        <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
+                          {record.processingDetails.originalType}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                {/* Modification History */}
+                {record.modificationHistory && record.modificationHistory.length > 0 && (
+                  <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
+                      History
+                    </span>
+                    <div style={{ 
+                      borderLeft: '2px solid var(--border)', 
+                      paddingLeft: '1rem',
+                      marginLeft: '0.25rem',
+                    }}>
+                      {record.modificationHistory.map((entry, index) => (
+                        <div 
+                          key={index} 
+                          style={{ 
+                            position: 'relative',
+                            paddingBottom: index < record.modificationHistory!.length - 1 ? '0.75rem' : 0,
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: '-1.35rem',
+                              top: '0.25rem',
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: entry.action === 'created' ? 'var(--teal-deep)' : 'var(--text-muted)',
+                            }}
+                          />
+                          <div style={{ fontSize: '0.85rem' }}>
+                            <span style={{ fontWeight: 500 }}>
+                              {entry.action === 'created' ? 'Created' : 
+                               entry.action === 'renamed' ? 'Renamed' : 
+                               entry.action === 'reclassified' ? 'Reclassified' : entry.action}
+                            </span>
+                            {entry.previousValue && entry.newValue && (
+                              <span style={{ color: 'var(--text-muted)' }}>
+                                {' '}from "{entry.previousValue}" to "{entry.newValue}"
+                              </span>
+                            )}
+                            <span style={{ 
+                              display: 'block', 
+                              fontSize: '0.75rem', 
+                              color: 'var(--text-muted)',
+                              fontFamily: '"JetBrains Mono", monospace',
+                            }}>
+                              {new Date(entry.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Structured Data */}
           {Object.keys(record.structuredData || {}).length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
