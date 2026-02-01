@@ -44,6 +44,7 @@
   
   /* Layout */
   --sidebar-width: 280px;
+  --sidebar-width-collapsed: 72px;
 }
 
 html, body {
@@ -519,6 +520,121 @@ body {
 
 .sidebar-overlay {
   display: none;
+}
+
+/* Sidebar Collapse Button */
+.sidebar-collapse-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.sidebar-header {
+  position: relative;
+}
+
+/* ==================== */
+/* Collapsed Sidebar */
+/* ==================== */
+
+.sidebar.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+.sidebar.collapsed .sidebar-header {
+  padding: 1.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sidebar.collapsed .brand {
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.sidebar.collapsed .sidebar-collapse-btn {
+  position: static;
+  transform: none;
+  margin-top: 0.5rem;
+}
+
+.sidebar.collapsed .role-badge {
+  font-size: 0.6rem;
+  padding: 0.2rem 0.4rem;
+}
+
+.sidebar.collapsed .role-badge.collapsed {
+  margin-top: 0.25rem;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  padding: 1rem 0.5rem;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0.875rem;
+  gap: 0;
+}
+
+.sidebar.collapsed .nav-icon {
+  margin: 0;
+}
+
+.sidebar.collapsed .nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.25rem;
+}
+
+.sidebar.collapsed .nav-badge.collapsed {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+
+.sidebar.collapsed .nav-item {
+  position: relative;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 1rem 0.5rem;
+}
+
+.sidebar.collapsed .logout-btn {
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Main content adjustment for collapsed sidebar */
+.app-layout.sidebar-collapsed .main-content {
+  margin-left: var(--sidebar-width-collapsed);
 }
 
 /* ==================== */
@@ -1467,6 +1583,50 @@ button.danger:hover:not(:disabled) {
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 12px;
+}
+
+/* ==================== */
+/* Access Network Tabs */
+/* ==================== */
+
+.access-network-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.25rem;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.access-network-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.access-network-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.access-network-tab.active {
+  background: var(--bg-primary);
+  color: var(--teal-deep);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.access-table-container {
+  min-height: 300px;
 }
 
 /* ==================== */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Toaster } from "sonner";
 import { useVault } from "./hooks/useVault";
 import { useDataRequests } from "./hooks/useDataRequests";
@@ -22,6 +22,25 @@ export default function HomePage() {
   const vault = useVault();
   const [activeSection, setActiveSection] = useState("records");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  
+  // Sidebar collapsed state with localStorage persistence
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
+  // Load collapsed state from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('sidebar-collapsed');
+    if (stored === 'true') {
+      setIsSidebarCollapsed(true);
+    }
+  }, []);
+  
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed(prev => {
+      const newValue = !prev;
+      localStorage.setItem('sidebar-collapsed', String(newValue));
+      return newValue;
+    });
+  }, []);
   
   // Data requests hook (only active when signed in)
   const dataRequests = useDataRequests(vault.signedIn ? vault.entityId : null);
@@ -173,7 +192,7 @@ export default function HomePage() {
         }}
       />
 
-      <div className="app-layout">
+      <div className={`app-layout ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <Sidebar
           activeSection={activeSection}
           onSectionChange={setActiveSection}
@@ -181,6 +200,8 @@ export default function HomePage() {
           onLogout={vault.logout}
           entityRole={vault.entityRole}
           pendingRequestsCount={dataRequests.pendingCount}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
         />
 
         <main className="main-content">

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon } from "./Icons";
+import { useState, useEffect } from "react";
+import { ShieldIcon, DocumentIcon, ShareIcon, DeviceIcon, SettingsIcon, NetworkIcon, HistoryIcon, ChevronLeftIcon, ChevronRightIcon } from "./Icons";
 import type { EntityRole } from "../lib/api";
 
 type NavItem = {
@@ -32,6 +32,8 @@ type SidebarProps = {
   onLogout: () => void;
   entityRole?: EntityRole | null;
   pendingRequestsCount?: number;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
 export function Sidebar({ 
@@ -41,6 +43,8 @@ export function Sidebar({
   onLogout, 
   entityRole,
   pendingRequestsCount = 0,
+  isCollapsed = false,
+  onToggleCollapse,
 }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -52,6 +56,12 @@ export function Sidebar({
   const getRoleLabel = (role: EntityRole | null | undefined) => {
     if (role === "doctor") return "Healthcare Provider";
     if (role === "patient") return "Patient";
+    return null;
+  };
+
+  const getRoleShortLabel = (role: EntityRole | null | undefined) => {
+    if (role === "doctor") return "DR";
+    if (role === "patient") return "PT";
     return null;
   };
 
@@ -78,21 +88,31 @@ export function Sidebar({
       </header>
 
       {/* Sidebar */}
-      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+      <aside className={`sidebar ${mobileOpen ? "open" : ""} ${isCollapsed ? "collapsed" : ""}`}>
         <div className="sidebar-header">
           <div className="brand">
             <div className="logo">
               <ShieldIcon className="w-6 h-6" />
             </div>
-            <span className="brand-name">MedVault</span>
-          </div>
-          <div className={`status-indicator ${connected ? "connected" : "disconnected"}`}>
-            {connected ? "● Encrypted & Live" : "○ Offline"}
+            {!isCollapsed && <span className="brand-name">MedVault</span>}
           </div>
           {entityRole && (
-            <div className={`role-badge ${entityRole}`}>
-              {getRoleLabel(entityRole)}
+            <div className={`role-badge ${entityRole} ${isCollapsed ? "collapsed" : ""}`}>
+              {isCollapsed ? getRoleShortLabel(entityRole) : getRoleLabel(entityRole)}
             </div>
+          )}
+          {onToggleCollapse && (
+            <button 
+              className="sidebar-collapse-btn"
+              onClick={onToggleCollapse}
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? (
+                <ChevronRightIcon className="w-4 h-4" />
+              ) : (
+                <ChevronLeftIcon className="w-4 h-4" />
+              )}
+            </button>
           )}
         </div>
 
@@ -105,11 +125,12 @@ export function Sidebar({
                 key={item.id}
                 className={`nav-item ${activeSection === item.id ? "active" : ""}`}
                 onClick={() => handleNavClick(item.id)}
+                title={isCollapsed ? item.label : undefined}
               >
                 <span className="nav-icon">{item.icon}</span>
-                <span className="nav-label">{item.label}</span>
+                {!isCollapsed && <span className="nav-label">{item.label}</span>}
                 {badgeCount > 0 && (
-                  <span className="nav-badge">{badgeCount}</span>
+                  <span className={`nav-badge ${isCollapsed ? "collapsed" : ""}`}>{badgeCount}</span>
                 )}
               </button>
             );
@@ -117,8 +138,12 @@ export function Sidebar({
         </nav>
 
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={onLogout}>
-            Log out
+          <button className="logout-btn" onClick={onLogout} title={isCollapsed ? "Log out" : undefined}>
+            {isCollapsed ? (
+              <span style={{ fontSize: '1.25rem' }}>↩</span>
+            ) : (
+              "Log out"
+            )}
           </button>
         </div>
       </aside>

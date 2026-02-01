@@ -20,10 +20,12 @@ import {
   getBezierPath,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ShieldIcon, DatabaseIcon, EyeIcon, HeartIcon } from "./Icons";
+import { ShieldIcon, DatabaseIcon, EyeIcon, HeartIcon, GridIcon, TableIcon } from "./Icons";
 import type { SharesResponse, PublicProfile, EntityRole } from "../lib/api";
 import { getPublicProfiles } from "../lib/api";
 import type { SharedPropertyValue } from "../hooks/useEventStream";
+
+type AccessNetworkTab = 'graph' | 'table';
 
 // Custom center node (current user's vault)
 const CenterNode: React.FC<NodeProps> = ({ data }) => {
@@ -531,96 +533,125 @@ export function AccessNetworkFlow({
     return propertyName;
   };
 
-  return (
-    <>
-      <div
-        className={className}
-        style={{
-          width: '100%',
-          height: '500px',
-          background: 'var(--bg-tertiary)',
-          borderRadius: '16px',
-          border: '1px solid var(--border)',
-        }}
-      >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onEdgeClick={(_, edge) => onEdgeClick?.(edge)}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          style={{ background: 'transparent' }}
-        >
-          <Controls />
-          <MiniMap
-            nodeColor={(node) => node.type === 'center' ? 'var(--mint)' : 'var(--bg-primary)'}
-            maskColor="rgba(255, 255, 255, 0.8)"
-          />
-          <Background color="var(--border)" gap={20} />
-        </ReactFlow>
-      </div>
+  // Tab state for switching between graph and table views
+  const [activeTab, setActiveTab] = useState<AccessNetworkTab>('graph');
 
-      {/* Access List - Detailed View */}
-      {outgoingSharesByEntity.length > 0 && (
-        <div className="access-list-section">
-          <h3>Who Has Access to Your Data</h3>
-          <p className="subsection-desc">
-            These entities currently have access to your data. 
-            You can revoke access at any time.
-          </p>
-          
-          <div className="access-list">
-            {outgoingSharesByEntity.map(([entityId, entityShares]) => {
-              const entityName = getEntityDisplayName(entityId);
-              const entitySubtitle = getEntitySubtitle(entityId);
-              
-              return (
-                <div key={entityId} className="access-list-item">
-                  <div className="access-list-header">
-                    <div className="entity-info">
-                      <span className="entity-icon">👨‍⚕️</span>
-                      <div className="entity-details">
-                        <span className="entity-name" title={`Entity ID: ${entityId}`}>
-                          {entityName}
-                        </span>
-                        {entitySubtitle && (
-                          <span className="entity-subtitle">{entitySubtitle}</span>
-                        )}
-                      </div>
+  // Render the graph view
+  const renderGraphView = () => (
+    <div
+      className={className}
+      style={{
+        width: '100%',
+        height: '500px',
+        background: 'var(--bg-tertiary)',
+        borderRadius: '16px',
+        border: '1px solid var(--border)',
+      }}
+    >
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onEdgeClick={(_, edge) => onEdgeClick?.(edge)}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        fitView
+        style={{ background: 'transparent' }}
+      >
+        <Controls />
+        <MiniMap
+          nodeColor={(node) => node.type === 'center' ? 'var(--mint)' : 'var(--bg-primary)'}
+          maskColor="rgba(255, 255, 255, 0.8)"
+        />
+        <Background color="var(--border)" gap={20} />
+      </ReactFlow>
+    </div>
+  );
+
+  // Render the table view
+  const renderTableView = () => (
+    <div className="access-table-container">
+      {outgoingSharesByEntity.length > 0 ? (
+        <div className="access-list">
+          {outgoingSharesByEntity.map(([entityId, entityShares]) => {
+            const entityName = getEntityDisplayName(entityId);
+            const entitySubtitle = getEntitySubtitle(entityId);
+            
+            return (
+              <div key={entityId} className="access-list-item">
+                <div className="access-list-header">
+                  <div className="entity-info">
+                    <span className="entity-icon">👨‍⚕️</span>
+                    <div className="entity-details">
+                      <span className="entity-name" title={`Entity ID: ${entityId}`}>
+                        {entityName}
+                      </span>
+                      {entitySubtitle && (
+                        <span className="entity-subtitle">{entitySubtitle}</span>
+                      )}
                     </div>
-                    <span className="share-count">
-                      {entityShares.length} record{entityShares.length !== 1 ? "s" : ""}
-                    </span>
                   </div>
-                  
-                  <div className="shared-records">
-                    {entityShares.map((share) => (
-                      <div key={share.propertyName} className="shared-record">
-                        <span className="record-name">{getRecordTitle(share.propertyName)}</span>
-                        {onRevokeShare && (
-                          <button
-                            className="small danger"
-                            onClick={() => onRevokeShare({ 
-                              targetEntityId: share.targetEntityId, 
-                              propertyName: share.propertyName 
-                            })}
-                          >
-                            Revoke
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <span className="share-count">
+                    {entityShares.length} record{entityShares.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+                
+                <div className="shared-records">
+                  {entityShares.map((share) => (
+                    <div key={share.propertyName} className="shared-record">
+                      <span className="record-name">{getRecordTitle(share.propertyName)}</span>
+                      {onRevokeShare && (
+                        <button
+                          className="small danger"
+                          onClick={() => onRevokeShare({ 
+                            targetEntityId: share.targetEntityId, 
+                            propertyName: share.propertyName 
+                          })}
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="empty-state">
+          <span className="empty-icon">🔐</span>
+          <p>No shared records</p>
+          <span className="empty-hint">Records you share will appear here</span>
         </div>
       )}
+    </div>
+  );
+
+  return (
+    <>
+      {/* Tab Navigation */}
+      <div className="access-network-tabs">
+        <button
+          className={`access-network-tab ${activeTab === 'graph' ? 'active' : ''}`}
+          onClick={() => setActiveTab('graph')}
+        >
+          <GridIcon className="w-4 h-4" />
+          <span>Graph View</span>
+        </button>
+        <button
+          className={`access-network-tab ${activeTab === 'table' ? 'active' : ''}`}
+          onClick={() => setActiveTab('table')}
+        >
+          <TableIcon className="w-4 h-4" />
+          <span>Table View</span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'graph' ? renderGraphView() : renderTableView()}
     </>
   );
 }
