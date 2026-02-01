@@ -71,6 +71,45 @@ app.prepare().then(() => {
       try {
         const events = await getEventStream(entityId);
         socket.emit("replay", events);
+
+        // Also replay shared property values from incoming shares
+        const entityShares = await getShares(entityId);
+        if (entityShares.incoming.length > 0) {
+          console.log(`[Socket.IO] Replaying ${entityShares.incoming.length} incoming shares for ${entityId}`);
+          
+          // Group shares by source entity to minimize event stream reads
+          const sharesBySource = new Map<string, string[]>();
+          for (const share of entityShares.incoming) {
+            const existing = sharesBySource.get(share.sourceEntityId) || [];
+            existing.push(share.propertyName);
+            sharesBySource.set(share.sourceEntityId, existing);
+          }
+
+          // For each source entity, emit their events for each shared property
+          // The client will decrypt each event and check if it matches the property name
+          for (const [sourceEntityId, propertyNames] of sharesBySource) {
+            try {
+              const sourceEvents = await getEventStream(sourceEntityId);
+              console.log(`[Socket.IO] Found ${sourceEvents.length} events from ${sourceEntityId} for ${propertyNames.length} properties`);
+              
+              // For each shared property, emit all source events
+              // The client will decrypt and filter - only matching PropertySet events are kept
+              // This is necessary because we can't decrypt the payload server-side
+              for (const propertyName of propertyNames) {
+                for (const event of sourceEvents) {
+                  const envelope: SharedEventEnvelope = {
+                    sourceEntityId,
+                    propertyName,
+                    event,
+                  };
+                  socket.emit("sharedEvent", envelope);
+                }
+              }
+            } catch (sourceError) {
+              console.error(`[Socket.IO] Failed to get events for source ${sourceEntityId}:`, sourceError);
+            }
+          }
+        }
       } catch (error) {
         socket.emit("error", { message: "Failed to load event stream" });
       }

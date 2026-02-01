@@ -260,6 +260,9 @@ export default function HomePage() {
               entityRole={vault.entityRole}
               onTransferRecords={vault.transferRecords}
               isTransferring={vault.isTransferring}
+              // Direct share (share with established connection)
+              onDirectShare={vault.directShare}
+              isDirectSharing={vault.isDirectSharing}
               allPatients={vault.allPatients}
               // Data requests (patient only)
               dataRequests={dataRequests.incomingRequests}

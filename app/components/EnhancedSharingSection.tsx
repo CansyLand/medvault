@@ -31,6 +31,9 @@ interface EnhancedSharingSectionProps {
   entityRole?: EntityRole | null;
   onTransferRecords?: (targetEntityId: string, propertyNames: string[]) => Promise<unknown>;
   isTransferring?: boolean;
+  // Direct share (share with established connection)
+  onDirectShare?: (targetEntityId: string, propertyNames: string[]) => Promise<unknown>;
+  isDirectSharing?: boolean;
   // Connected patients (doctor only)
   allPatients?: Array<{ entityId: string; recordCount: number; registered: boolean }>;
   // Data requests (patient only)
@@ -56,6 +59,8 @@ export function EnhancedSharingSection({
   entityRole,
   onTransferRecords,
   isTransferring,
+  onDirectShare,
+  isDirectSharing,
   allPatients = [],
   dataRequests = [],
   pendingRequestsCount = 0,
@@ -90,11 +95,50 @@ export function EnhancedSharingSection({
   const [patientProfiles, setPatientProfiles] = useState<Record<string, PublicProfile>>({});
   const [patientSelectionMode, setPatientSelectionMode] = useState<"select" | "manual">("select");
   
+  // Direct share state (share with established connection)
+  const [selectedConnection, setSelectedConnection] = useState<string>(""); // "" = generate code, entityId = direct share
+  const [connectionProfiles, setConnectionProfiles] = useState<Record<string, PublicProfile>>({});
+  const [directShareSuccess, setDirectShareSuccess] = useState<string | null>(null);
+  
   const isDoctor = entityRole === "doctor";
   const isPatient = entityRole === "patient";
   
   // Get patient IDs for profile fetching
   const patientIds = useMemo(() => allPatients.map(p => p.entityId), [allPatients]);
+  
+  // Derive established connections from shares (unique entity IDs from both outgoing and incoming)
+  const connections = useMemo(() => {
+    const entityMap = new Map<string, { entityId: string; direction: "outgoing" | "incoming" | "both" }>();
+    
+    // Add entities from outgoing shares (entities I've shared with)
+    shares.outgoing.forEach((share) => {
+      const existing = entityMap.get(share.targetEntityId);
+      if (existing) {
+        if (existing.direction === "incoming") {
+          existing.direction = "both";
+        }
+      } else {
+        entityMap.set(share.targetEntityId, { entityId: share.targetEntityId, direction: "outgoing" });
+      }
+    });
+    
+    // Add entities from incoming shares (entities that have shared with me)
+    shares.incoming.forEach((share) => {
+      const existing = entityMap.get(share.sourceEntityId);
+      if (existing) {
+        if (existing.direction === "outgoing") {
+          existing.direction = "both";
+        }
+      } else {
+        entityMap.set(share.sourceEntityId, { entityId: share.sourceEntityId, direction: "incoming" });
+      }
+    });
+    
+    return Array.from(entityMap.values());
+  }, [shares.outgoing, shares.incoming]);
+  
+  // Get connection IDs for profile fetching
+  const connectionIds = useMemo(() => connections.map(c => c.entityId), [connections]);
   
   // Fetch patient profiles for display names
   useEffect(() => {
@@ -108,6 +152,19 @@ export function EnhancedSharingSection({
         console.error("Failed to fetch patient profiles:", err);
       });
   }, [patientIds]);
+  
+  // Fetch connection profiles for display names
+  useEffect(() => {
+    if (connectionIds.length === 0) return;
+    
+    getPublicProfiles(connectionIds)
+      .then((profiles) => {
+        setConnectionProfiles(profiles);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch connection profiles:", err);
+      });
+  }, [connectionIds]);
   
   // Update countdown timer for share code expiration
   useEffect(() => {
@@ -275,6 +332,33 @@ export function EnhancedSharingSection({
     for (const key of selectedRecords) {
       await onCreateShare(key);
     }
+  };
+  
+  // Handle direct share with established connection
+  const handleDirectShare = async () => {
+    if (!onDirectShare || selectedRecords.length === 0 || !selectedConnection) return;
+    
+    try {
+      await onDirectShare(selectedConnection, selectedRecords);
+      const profile = connectionProfiles[selectedConnection];
+      const displayName = profile?.displayName || `${selectedConnection.slice(0, 8)}...`;
+      setDirectShareSuccess(`Successfully shared ${selectedRecords.length} record(s) with ${displayName}`);
+      setSelectedRecords([]);
+      setSelectedConnection("");
+    } catch (err) {
+      setDirectShareSuccess(null);
+    }
+  };
+  
+  // Get display name for a connection
+  const getConnectionDisplayName = (entityId: string) => {
+    const profile = connectionProfiles[entityId];
+    if (profile) {
+      return profile.organizationName 
+        ? `${profile.displayName} (${profile.organizationName})`
+        : profile.displayName;
+    }
+    return `Entity ${entityId.slice(0, 8)}...`;
   };
   
   const handleCopyCode = async () => {
@@ -718,16 +802,81 @@ export function EnhancedSharingSection({
                     </div>
                   </div>
 
+                  {/* Connection Selection (Direct Share) */}
+                  {connections.length > 0 && onDirectShare && (
+                    <div style={{ marginBottom: "1rem" }}>
+                      <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 500, marginBottom: "0.5rem" }}>
+                        Share With
+                      </label>
+                      <select
+                        value={selectedConnection}
+                        onChange={(e) => {
+                          setSelectedConnection(e.target.value);
+                          setDirectShareSuccess(null);
+                        }}
+                        disabled={disabled || isCreating || isDirectSharing}
+                      >
+                        <option value="">Anyone (generate share code)</option>
+                        <optgroup label="Established Connections">
+                          {connections.map((conn) => (
+                            <option key={conn.entityId} value={conn.entityId}>
+                              {getConnectionDisplayName(conn.entityId)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                  )}
+
                   {/* Share Button */}
-                  <button
-                    onClick={handleCreateShare}
-                    disabled={disabled || selectedRecords.length === 0 || isCreating}
-                    style={{ width: "100%" }}
-                  >
-                    {isCreating
-                      ? "Generating Share Code..."
-                      : `Generate Share Code${selectedRecords.length > 0 ? ` (${selectedRecords.length})` : ""}`}
-                  </button>
+                  {selectedConnection ? (
+                    <button
+                      onClick={handleDirectShare}
+                      disabled={disabled || selectedRecords.length === 0 || isDirectSharing}
+                      style={{ width: "100%" }}
+                    >
+                      {isDirectSharing
+                        ? "Sharing..."
+                        : `Share with ${getConnectionDisplayName(selectedConnection)}${selectedRecords.length > 0 ? ` (${selectedRecords.length})` : ""}`}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCreateShare}
+                      disabled={disabled || selectedRecords.length === 0 || isCreating}
+                      style={{ width: "100%" }}
+                    >
+                      {isCreating
+                        ? "Generating Share Code..."
+                        : `Generate Share Code${selectedRecords.length > 0 ? ` (${selectedRecords.length})` : ""}`}
+                    </button>
+                  )}
+
+                  {/* Direct Share Success */}
+                  {directShareSuccess && (
+                    <div
+                      style={{
+                        marginTop: "1rem",
+                        padding: "1rem",
+                        background: "var(--mint-pale)",
+                        borderRadius: "12px",
+                        border: "1px solid var(--mint-secondary)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <CheckIcon style={{ width: "20px", height: "20px", color: "var(--teal-deep)" }} />
+                        <p style={{ fontSize: "0.9rem", color: "var(--teal-deep)", fontWeight: 500, margin: 0 }}>
+                          {directShareSuccess}
+                        </p>
+                      </div>
+                      <button
+                        className="small secondary"
+                        onClick={() => setDirectShareSuccess(null)}
+                        style={{ marginTop: "0.75rem" }}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </>

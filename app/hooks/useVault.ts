@@ -42,6 +42,7 @@ import {
   consumeShare,
   revokeShare,
   getShares,
+  createDirectShare,
   transferToPatient,
   savePublicProfile,
   getEntityPublicKey,
@@ -684,6 +685,74 @@ export function useVault() {
     }
   });
 
+  // Direct share to a connection (no share code needed)
+  const directShareMutation = useMutation({
+    mutationFn: async (params: { targetEntityId: string; propertyNames: string[] }) => {
+      if (!entityId || !entityPrivateKey) throw new Error("Not authenticated");
+
+      const { targetEntityId, propertyNames } = params;
+      
+      // Fetch the target's public key for asymmetric encryption
+      const targetPublicKeyBase64 = await getEntityPublicKey(targetEntityId);
+      if (!targetPublicKeyBase64) {
+        throw new Error("Recipient's public key not found. They may need to log in again.");
+      }
+      const targetPublicKey = await publicKeyFromBase64(targetPublicKeyBase64);
+      
+      // Encrypt each property using the target's public key (asymmetric encryption)
+      const encryptedPayloads: Record<string, SealedBoxPayload> = {};
+      const properties = eventStream.state?.properties ?? {};
+      
+      for (const propertyName of propertyNames) {
+        const value = properties[propertyName];
+        if (!value) {
+          console.warn(`[DirectShare] Property ${propertyName} not found, skipping`);
+          continue;
+        }
+        
+        // Create encrypted payload for the target's vault using their public key
+        const eventData = {
+          type: "PropertySet",
+          data: { key: propertyName, value }
+        };
+        const encrypted = await encryptForRecipient(eventData, targetPublicKey);
+        encryptedPayloads[propertyName] = encrypted;
+      }
+
+      if (Object.keys(encryptedPayloads).length === 0) {
+        throw new Error("No valid properties to share");
+      }
+
+      // Call direct share API
+      const result = await createDirectShare(
+        targetEntityId,
+        propertyNames,
+        encryptedPayloads
+      );
+
+      // Emit share event for audit log
+      for (const propertyName of result.shared) {
+        eventStream.appendEvent({
+          type: "DirectShareCreated",
+          data: {
+            propertyName,
+            targetEntityId,
+          },
+        });
+      }
+
+      // Refresh shares list
+      const updatedShares = await getShares();
+      setShares(updatedShares);
+
+      toast.success(`Shared ${result.shared.length} record(s) directly`);
+      return result;
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to share records.");
+    }
+  });
+
   const restoreMutation = useMutation({
     mutationFn: async () => {
       const session = await getSession();
@@ -809,6 +878,7 @@ export function useVault() {
       revokeShareMutation.isPending ||
       transferMutation.isPending ||
       saveProfileMutation.isPending ||
+      directShareMutation.isPending ||
       (restoreMutation.isPending && !restoreDone),
     [
       loginMutation.isPending,
@@ -819,6 +889,7 @@ export function useVault() {
       consumeShareMutation.isPending,
       revokeShareMutation.isPending,
       transferMutation.isPending,
+      directShareMutation.isPending,
       saveProfileMutation.isPending,
       restoreMutation.isPending,
       restoreDone
@@ -863,6 +934,10 @@ export function useVault() {
   // Transfer action (doctor only)
   const transferRecords = (targetEntityId: string, propertyNames: string[]) =>
     transferMutation.mutateAsync({ targetEntityId, propertyNames });
+
+  // Direct share action (share with established connection)
+  const directShare = (targetEntityId: string, propertyNames: string[]) =>
+    directShareMutation.mutateAsync({ targetEntityId, propertyNames });
 
   // Record rename - emit event for audit log
   const renameRecord = (key: string, oldName: string, newName: string) => {
@@ -918,6 +993,9 @@ export function useVault() {
     // Transfer-related (doctor only)
     isTransferring: transferMutation.isPending,
     transferRecords,
+    // Direct share (share with established connection)
+    isDirectSharing: directShareMutation.isPending,
+    directShare,
     // Patient management (doctor only)
     patientList,
     allPatients,

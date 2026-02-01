@@ -22,6 +22,7 @@ export type EventType =
   | "ShareCreated"
   | "ShareAccepted"
   | "ShareRevoked"
+  | "DirectShareCreated"
   | "RecordTransferred"
   | "RecordReceived"
   | "DataRequestCreated"
@@ -55,6 +56,11 @@ export type ShareRevokedData = {
   entityId: string;
   propertyName: string;
   direction: "incoming" | "outgoing";
+};
+
+export type DirectShareCreatedData = {
+  propertyName: string;
+  targetEntityId: string;
 };
 
 export type RecordRenamedData = {
@@ -108,6 +114,7 @@ export type EventData =
   | ShareCreatedData
   | ShareAcceptedData
   | ShareRevokedData
+  | DirectShareCreatedData
   | RecordTransferredData
   | RecordReceivedData
   | DataRequestCreatedData

@@ -139,6 +139,25 @@ export async function getShares(): Promise<SharesResponse> {
   return fetchJson<SharesResponse>("/api/shares");
 }
 
+// Direct share types
+export type DirectShareResponse = {
+  shared: string[];
+  message: string;
+};
+
+// Direct share API function - share directly with a connection using public key encryption
+export async function createDirectShare(
+  targetEntityId: string,
+  propertyNames: string[],
+  encryptedPayloads: Record<string, unknown>
+): Promise<DirectShareResponse> {
+  return fetchJson<DirectShareResponse>("/api/shares/direct", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetEntityId, propertyNames, encryptedPayloads })
+  });
+}
+
 // Transfer types
 export type TransferRequest = {
   targetEntityId: string;
