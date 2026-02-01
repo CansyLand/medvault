@@ -16,7 +16,6 @@ import {
   Position,
   NodeProps,
   EdgeProps,
-  BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
 } from "@xyflow/react";
@@ -175,13 +174,13 @@ const CustomEdge: React.FC<EdgeProps> = ({
 
   return (
     <>
-      <BaseEdge
-        path={edgePath}
-        style={{
-          stroke: isActive ? "var(--teal-deep)" : "var(--border-light)",
-          strokeWidth: 2,
-          strokeDasharray: isActive ? "0" : "5,5",
-        }}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={isActive ? "#0f766e" : "#cbd5e1"}
+        strokeWidth={2}
+        strokeDasharray={isActive ? "0" : "5,5"}
+        className="react-flow__edge-path"
       />
       <EdgeLabelRenderer>
         <div
