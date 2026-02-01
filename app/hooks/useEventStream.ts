@@ -199,6 +199,7 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
   const [events, setEvents] = useState<EntityEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<EntityState | null>(null);
+  const [replayReceived, setReplayReceived] = useState(false);
 
   // Shared data from other entities
   const [sharedData, setSharedData] = useState<SharedPropertyValue[]>([]);
@@ -349,6 +350,7 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
       setEvents([]);
       setState(null);
       setSharedData([]);
+      setReplayReceived(false);
       return;
     }
 
@@ -376,6 +378,7 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
       const decrypted = await decryptEvents(encryptedEvents);
       setEvents(decrypted);
       setState(reduceEvents(decrypted));
+      setReplayReceived(true);
     });
 
     // Receive new encrypted event in real-time
@@ -461,6 +464,7 @@ export function useEventStream(entityId: string | null, entityKey: Uint8Array | 
     events,
     state,
     connected,
+    replayReceived,
     sharedData,
     appendEvent,
     setProperty,

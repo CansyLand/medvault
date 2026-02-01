@@ -388,24 +388,33 @@ export function useVault() {
     mutationFn: async ({ role, email }: { role?: EntityRole; email?: string }) => {
       let credentialId: string;
 
-      // Try passkey discovery first - this allows user to pick any available passkey
-      // (supports multiple accounts on the same machine)
-      try {
-        const auth = await startAuthentication({
-          optionsJSON: {
-            challenge: randomBase64Url(),
-            timeout: 60000,
-            userVerification: "required",
-            rpId: window.location.hostname,
-            // Empty allowCredentials enables passkey discovery - browser shows all available passkeys
-            allowCredentials: []
-          }
-        });
-        credentialId = auth.id;
-        setLocal(CREDENTIAL_ID_KEY, credentialId);
-      } catch (err) {
-        // No passkey found or user cancelled - register a new one
-        // This happens for first-time users
+      // Check if user has an existing passkey stored locally
+      const existingCredentialId = getLocal(CREDENTIAL_ID_KEY);
+
+      if (existingCredentialId) {
+        // Existing user: try authentication with passkey discovery
+        // This allows selecting from available passkeys (supports multiple accounts)
+        try {
+          const auth = await startAuthentication({
+            optionsJSON: {
+              challenge: randomBase64Url(),
+              timeout: 60000,
+              userVerification: "required",
+              rpId: window.location.hostname,
+              // Empty allowCredentials enables passkey discovery - browser shows all available passkeys
+              allowCredentials: []
+            }
+          });
+          credentialId = auth.id;
+          setLocal(CREDENTIAL_ID_KEY, credentialId);
+        } catch (err) {
+          // User cancelled or passkey not found - they may want to use a different passkey
+          // or register a new one. Fall back to registration.
+          pendingRoleRef.current = role || null;
+          credentialId = await registerNewPasskey(email || "");
+        }
+      } else {
+        // New user: go directly to passkey registration
         pendingRoleRef.current = role || null;
         credentialId = await registerNewPasskey(email || "");
       }
@@ -798,11 +807,12 @@ export function useVault() {
       } catch {
         setIsOnboardingComplete(false);
       }
-    } else if (eventStream.connected && eventStream.state) {
-      // Connected but no profile found - onboarding needed
+    } else if (eventStream.connected && eventStream.replayReceived) {
+      // Connected and replay received, but no profile found - onboarding needed
+      // This handles both: existing entities without profile AND new entities (empty replay)
       setIsOnboardingComplete(false);
     }
-  }, [eventStream.state?.properties, eventStream.connected, eventStream.state, profilePropertyKey]);
+  }, [eventStream.state?.properties, eventStream.connected, eventStream.replayReceived, profilePropertyKey]);
 
   // Save profile mutation
   const saveProfileMutation = useMutation({
