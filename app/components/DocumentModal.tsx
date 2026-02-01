@@ -9,6 +9,8 @@ interface DocumentModalProps {
   pdfBase64?: string | null;
   isOpen: boolean;
   onClose: () => void;
+  onRetry?: (recordId: string, pdfBase64: string) => Promise<void>;
+  isRetrying?: boolean;
 }
 
 // Convert field keys to Title Case for display
@@ -22,8 +24,11 @@ function formatFieldName(key: string): string {
     .join(' ');
 }
 
-export function DocumentModal({ record, pdfBase64, isOpen, onClose }: DocumentModalProps) {
+export function DocumentModal({ record, pdfBase64, isOpen, onClose, onRetry, isRetrying }: DocumentModalProps) {
   if (!isOpen || !record) return null;
+
+  const extractionFailed = record.title === "Extraction Failed";
+  const canRetry = extractionFailed && pdfBase64 && onRetry;
 
   return (
     <div
@@ -368,9 +373,41 @@ export function DocumentModal({ record, pdfBase64, isOpen, onClose }: DocumentMo
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Encrypted with XSalsa20-Poly1305
           </span>
-          <button onClick={onClose}>
-            Close
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            {canRetry && (
+              <button
+                onClick={() => onRetry(record.id, pdfBase64)}
+                disabled={isRetrying}
+                style={{
+                  background: 'var(--teal-deep)',
+                  color: 'white',
+                  opacity: isRetrying ? 0.6 : 1,
+                  cursor: isRetrying ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isRetrying ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        borderTopColor: 'white',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                      }}
+                    />
+                    Retrying...
+                  </span>
+                ) : (
+                  'Retry Processing'
+                )}
+              </button>
+            )}
+            <button onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -46,6 +46,17 @@ export function DocumentUpload({ onUpload, disabled, compact = false, uploadedBy
       // Extract content using Gemini AI
       const extractedData = await extractPDFContent(base64);
 
+      // Check if extraction failed (title will be "Extraction Failed")
+      if (extractedData.title === "Extraction Failed") {
+        console.warn("Document extraction failed, content:", extractedData.content);
+        const shouldContinue = window.confirm(
+          `Document processing encountered an issue:\n\n${extractedData.content}\n\nWould you like to save the document anyway? (You can re-process it later)`
+        );
+        if (!shouldContinue) {
+          return;
+        }
+      }
+
       // Create record ID
       const recordId = `doc-${Date.now()}`;
       const recordKey = createRecordPropertyKey(recordId);
@@ -102,6 +113,8 @@ export function DocumentUpload({ onUpload, disabled, compact = false, uploadedBy
 
     } catch (error) {
       console.error("Upload failed:", error);
+      // Show a user-friendly error message
+      alert("Failed to process document. The AI service may be temporarily busy. Please try again in a moment.");
     } finally {
       setUploading(false);
     }

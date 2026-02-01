@@ -11,9 +11,13 @@ import { RequestDataModal } from "./RequestDataModal";
 import type { MedicalRecord, MedicalRecordType } from "../types/medical";
 import {
   parseRecordFromProperty,
+  serializeRecordForProperty,
   getRecordTypeIconClass,
   PropertyKeyPrefixes,
+  createRecordPropertyKey,
+  createPdfPropertyKey,
 } from "../types/medical";
+import { extractPDFContent } from "../services/geminiService";
 import { getTypeConfig } from "./RecordTypeFilter";
 
 interface PatientRecordsViewProps {
@@ -58,6 +62,7 @@ export function PatientRecordsView({
   const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Parse all records
   const allRecords = useMemo(() => {
@@ -137,6 +142,82 @@ export function PatientRecordsView({
     setSelectedRecord(record);
     setSelectedPdfBase64(pdfKey ? pendingRecords[pdfKey] : null);
     setShowModal(true);
+  };
+
+  // Retry document extraction
+  const handleRetryExtraction = async (recordId: string, pdfBase64: string) => {
+    setIsRetrying(true);
+    try {
+      const extractedData = await extractPDFContent(pdfBase64);
+      
+      // Check if extraction still failed
+      if (extractedData.title === "Extraction Failed") {
+        alert(`Extraction failed: ${extractedData.content}\n\nPlease try again later.`);
+        return;
+      }
+
+      const recordKey = createRecordPropertyKey(recordId);
+      const now = new Date().toISOString();
+
+      // Map extracted type to our type system
+      const typeMap: Record<string, MedicalRecordType> = {
+        "Lab Report": "lab_report",
+        "Prescription": "prescription",
+        "Imaging": "imaging",
+        "Clinical Notes": "clinical_notes",
+        "Insurance": "insurance",
+        "Other": "document",
+      };
+
+      const recordType = typeMap[extractedData.type] || "document";
+
+      // Get existing record to preserve some metadata
+      const existingRecord = selectedRecord;
+      
+      // Create updated record
+      const updatedRecord: MedicalRecord = {
+        id: recordId,
+        type: recordType,
+        title: extractedData.title || "Document",
+        date: extractedData.date,
+        provider: extractedData.provider,
+        summary: extractedData.summary,
+        content: extractedData.content,
+        structuredData: extractedData.structuredFields || {},
+        createdAt: existingRecord?.createdAt || now,
+        updatedAt: now,
+        sourceFileName: existingRecord?.sourceFileName,
+        uploadMethod: existingRecord?.uploadMethod || "manual_upload",
+        uploadedBy: existingRecord?.uploadedBy,
+        uploaderName: existingRecord?.uploaderName,
+        processingDetails: {
+          aiModel: "gemini-2.0-flash",
+          extractedAt: now,
+          originalType: extractedData.type,
+        },
+        modificationHistory: [
+          ...(existingRecord?.modificationHistory || []),
+          {
+            action: "reprocessed",
+            timestamp: now,
+          },
+        ],
+      };
+
+      // Update the record in pending records
+      onUpload(recordKey, serializeRecordForProperty(updatedRecord));
+      
+      // Update selected record in modal
+      setSelectedRecord(updatedRecord);
+      
+      // Show success message
+      alert("Document successfully reprocessed!");
+    } catch (error) {
+      console.error("Retry extraction failed:", error);
+      alert("Failed to reprocess document. Please try again later.");
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   // No patient selected state
@@ -301,6 +382,8 @@ export function PatientRecordsView({
           setSelectedRecord(null);
           setSelectedPdfBase64(null);
         }}
+        onRetry={handleRetryExtraction}
+        isRetrying={isRetrying}
       />
 
       {/* Request Data Modal */}

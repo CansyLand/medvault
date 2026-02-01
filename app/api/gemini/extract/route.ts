@@ -15,6 +15,8 @@ interface ExtractedDocumentData {
 export async function POST(request: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
   
+  console.log("[Gemini Extract] API key configured:", !!apiKey, apiKey ? `(${apiKey.slice(0, 10)}...)` : "");
+  
   if (!apiKey) {
     return NextResponse.json(
       { error: "Gemini API key not configured" },
@@ -24,6 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { pdfBase64 } = await request.json();
+    console.log("[Gemini Extract] PDF data received, length:", pdfBase64?.length || 0);
     
     if (!pdfBase64) {
       return NextResponse.json(
@@ -33,6 +36,8 @@ export async function POST(request: NextRequest) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
+    
+    console.log("[Gemini Extract] Calling Gemini API...");
     
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
@@ -76,6 +81,9 @@ IMPORTANT RULES:
       },
     });
 
+    console.log("[Gemini Extract] Response received, type:", typeof response);
+    console.log("[Gemini Extract] Response keys:", Object.keys(response || {}));
+    
     const text = response.text || "{}";
     
     console.log("[Gemini Extract] Raw response:", text.slice(0, 500));
@@ -134,9 +142,27 @@ IMPORTANT RULES:
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Gemini extraction error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Gemini extraction error:", errorMessage, error);
+    
+    // Check for rate limiting errors
+    if (errorMessage.includes("429") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("Resource exhausted")) {
+      return NextResponse.json(
+        { error: "AI service is temporarily busy. Please wait a minute and try again." },
+        { status: 429 }
+      );
+    }
+    
+    // Check for quota exceeded
+    if (errorMessage.includes("quota") || errorMessage.includes("QUOTA")) {
+      return NextResponse.json(
+        { error: "AI service quota exceeded. Please try again later or contact support." },
+        { status: 429 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Failed to extract document content" },
+      { error: `Failed to extract document content: ${errorMessage}` },
       { status: 500 }
     );
   }

@@ -123,15 +123,23 @@ export async function extractPDFContent(pdfBase64: string): Promise<ExtractedDoc
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      console.error("Extraction API error:", error);
+      const errorText = await response.text();
+      console.error("Extraction API error:", response.status, errorText);
+      let errorMessage = "Failed to extract content from the document.";
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorMessage;
+      } catch {
+        // Use text as-is if not JSON
+        if (errorText) errorMessage = errorText;
+      }
       return {
         type: "Other",
         language: "Unknown",
         title: "Extraction Failed",
         date: null,
         provider: null,
-        content: error.error || "Failed to extract content from the document.",
+        content: errorMessage,
         summary: "Document processing failed.",
         structuredFields: {},
       };
