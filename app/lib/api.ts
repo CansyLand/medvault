@@ -15,7 +15,10 @@ export async function fetchJson<T>(
   input: RequestInfo,
   init?: RequestInit
 ): Promise<T> {
-  const response = await fetch(input, init);
+  const response = await fetch(input, {
+    ...init,
+    credentials: 'include', // Ensure cookies are sent
+  });
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
