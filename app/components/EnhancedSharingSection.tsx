@@ -45,7 +45,8 @@ export function EnhancedSharingSection({
   onTransferRecords,
   isTransferring,
 }: EnhancedSharingSectionProps) {
-  const [selectedRecords, setSelectedRecords] = useState<string[]>([]);
+  const [selectedRecords, setSelectedRecords] = useState<string[]>([]); // For sharing
+  const [selectedTransferRecords, setSelectedTransferRecords] = useState<string[]>([]); // For transfers
   const [shareCode, setShareCode] = useState("");
   const [purpose, setPurpose] = useState("");
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
@@ -59,13 +60,32 @@ export function EnhancedSharingSection({
   const isDoctor = entityRole === "doctor";
   const isPatient = entityRole === "patient";
 
-  // Parse medical records from properties (excludes profile data - that's master data, not shareable/transferable)
-  const records = useMemo(() => {
-    const result: Array<{ key: string; title: string; type: string }> = [];
+  // Parse shareable items from properties (includes profile data for sharing, but not for transfer)
+  const shareableItems = useMemo(() => {
+    const result: Array<{ key: string; title: string; type: string; isProfile?: boolean }> = [];
 
     Object.entries(properties).forEach(([key, value]) => {
-      // Skip profile data - this is practice/patient master data, not transferable
+      // Include profile data for sharing (but mark it specially)
       if (key.startsWith(PropertyKeyPrefixes.PROFILE)) {
+        try {
+          const profileData = JSON.parse(value);
+          const displayName = profileData.organizationName 
+            ? `${profileData.title || ''} ${profileData.firstName || ''} ${profileData.lastName || ''} - ${profileData.organizationName}`.trim()
+            : `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
+          result.push({
+            key,
+            title: displayName || "Personal Information",
+            type: "profile",
+            isProfile: true,
+          });
+        } catch {
+          result.push({
+            key,
+            title: "Personal Information",
+            type: "profile",
+            isProfile: true,
+          });
+        }
         return;
       }
       
@@ -78,8 +98,8 @@ export function EnhancedSharingSection({
             type: record.type,
           });
         }
-      } else if (!key.startsWith(PropertyKeyPrefixes.PDF)) {
-        // Include simple properties too (but not profile or PDF data)
+      } else if (!key.startsWith(PropertyKeyPrefixes.PDF) && !key.startsWith(PropertyKeyPrefixes.PATIENTS)) {
+        // Include simple properties too (but not PDF or patients list data)
         result.push({
           key,
           title: key,
@@ -90,7 +110,16 @@ export function EnhancedSharingSection({
 
     return result;
   }, [properties]);
+  
+  // Filter out profile data for transfers (ownership transfer shouldn't include master data)
+  const transferableRecords = useMemo(() => {
+    return shareableItems.filter(item => !item.isProfile);
+  }, [shareableItems]);
+  
+  // All items are available for sharing (including profile data)
+  const records = shareableItems;
 
+  // Handlers for sharing records (includes profile data)
   const handleRecordToggle = (key: string) => {
     setSelectedRecords((prev) =>
       prev.includes(key)
@@ -104,6 +133,23 @@ export function EnhancedSharingSection({
       setSelectedRecords([]);
     } else {
       setSelectedRecords(records.map((r) => r.key));
+    }
+  };
+  
+  // Handlers for transfer records (excludes profile data)
+  const handleTransferRecordToggle = (key: string) => {
+    setSelectedTransferRecords((prev) =>
+      prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key]
+    );
+  };
+
+  const handleTransferSelectAll = () => {
+    if (selectedTransferRecords.length === transferableRecords.length) {
+      setSelectedTransferRecords([]);
+    } else {
+      setSelectedTransferRecords(transferableRecords.map((r) => r.key));
     }
   };
 
@@ -143,12 +189,12 @@ export function EnhancedSharingSection({
   };
 
   const handleTransfer = async () => {
-    if (!onTransferRecords || selectedRecords.length === 0 || !patientEntityId.trim()) return;
+    if (!onTransferRecords || selectedTransferRecords.length === 0 || !patientEntityId.trim()) return;
     
     try {
-      await onTransferRecords(patientEntityId.trim(), selectedRecords);
-      setTransferSuccess(`Successfully transferred ${selectedRecords.length} record(s) to patient`);
-      setSelectedRecords([]);
+      await onTransferRecords(patientEntityId.trim(), selectedTransferRecords);
+      setTransferSuccess(`Successfully transferred ${selectedTransferRecords.length} record(s) to patient`);
+      setSelectedTransferRecords([]);
       setPatientEntityId("");
     } catch (err) {
       setTransferSuccess(null);
@@ -174,7 +220,7 @@ export function EnhancedSharingSection({
             and can share these records with other providers. You will retain read access.
           </p>
 
-          {records.length === 0 ? (
+          {transferableRecords.length === 0 ? (
             <div
               style={{
                 padding: "1.5rem",
@@ -208,14 +254,14 @@ export function EnhancedSharingSection({
                   }}
                 >
                   <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                    Select Records to Transfer ({selectedRecords.length}/{records.length})
+                    Select Records to Transfer ({selectedTransferRecords.length}/{transferableRecords.length})
                   </span>
-                  <button className="small secondary" onClick={handleSelectAll}>
-                    {selectedRecords.length === records.length ? "Deselect All" : "Select All"}
+                  <button className="small secondary" onClick={handleTransferSelectAll}>
+                    {selectedTransferRecords.length === transferableRecords.length ? "Deselect All" : "Select All"}
                   </button>
                 </div>
                 <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                  {records.map((record) => (
+                  {transferableRecords.map((record) => (
                     <label
                       key={record.key}
                       style={{
@@ -225,15 +271,15 @@ export function EnhancedSharingSection({
                         padding: "0.75rem 1rem",
                         borderBottom: "1px solid var(--border)",
                         cursor: "pointer",
-                        background: selectedRecords.includes(record.key)
+                        background: selectedTransferRecords.includes(record.key)
                           ? "var(--mint-pale)"
                           : "transparent",
                       }}
                     >
                       <input
                         type="checkbox"
-                        checked={selectedRecords.includes(record.key)}
-                        onChange={() => handleRecordToggle(record.key)}
+                        checked={selectedTransferRecords.includes(record.key)}
+                        onChange={() => handleTransferRecordToggle(record.key)}
                         style={{ width: "18px", height: "18px", accentColor: "var(--teal-deep)" }}
                       />
                       <div
@@ -266,12 +312,12 @@ export function EnhancedSharingSection({
               {/* Transfer Button */}
               <button
                 onClick={handleTransfer}
-                disabled={disabled || selectedRecords.length === 0 || !patientEntityId.trim() || isTransferring}
+                disabled={disabled || selectedTransferRecords.length === 0 || !patientEntityId.trim() || isTransferring}
                 style={{ width: "100%", background: "var(--lavender)", color: "var(--lavender-dark)" }}
               >
                 {isTransferring
                   ? "Transferring..."
-                  : `Transfer ${selectedRecords.length} Record${selectedRecords.length !== 1 ? "s" : ""} to Patient`}
+                  : `Transfer ${selectedTransferRecords.length} Record${selectedTransferRecords.length !== 1 ? "s" : ""} to Patient`}
               </button>
 
               {/* Transfer Success */}
@@ -348,36 +394,63 @@ export function EnhancedSharingSection({
                 </button>
               </div>
               <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                {records.map((record) => (
-                  <label
-                    key={record.key}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      padding: "0.75rem 1rem",
-                      borderBottom: "1px solid var(--border)",
-                      cursor: "pointer",
-                      background: selectedRecords.includes(record.key)
-                        ? "var(--mint-pale)"
-                        : "transparent",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedRecords.includes(record.key)}
-                      onChange={() => handleRecordToggle(record.key)}
-                      style={{ width: "18px", height: "18px", accentColor: "var(--teal-deep)" }}
-                    />
-                    <div
-                      className={`record-type-icon ${getRecordTypeIconClass(record.type as any)}`}
-                      style={{ width: "32px", height: "32px", fontSize: "0.65rem" }}
+                {records.map((record) => {
+                  const isProfile = record.isProfile;
+                  return (
+                    <label
+                      key={record.key}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        padding: "0.75rem 1rem",
+                        borderBottom: "1px solid var(--border)",
+                        cursor: "pointer",
+                        background: selectedRecords.includes(record.key)
+                          ? isProfile ? "rgba(124, 58, 237, 0.1)" : "var(--mint-pale)"
+                          : "transparent",
+                      }}
                     >
-                      {record.type.slice(0, 2).toUpperCase()}
-                    </div>
-                    <span style={{ fontWeight: 500 }}>{record.title}</span>
-                  </label>
-                ))}
+                      <input
+                        type="checkbox"
+                        checked={selectedRecords.includes(record.key)}
+                        onChange={() => handleRecordToggle(record.key)}
+                        style={{ width: "18px", height: "18px", accentColor: isProfile ? "var(--lavender-dark)" : "var(--teal-deep)" }}
+                      />
+                      {isProfile ? (
+                        <div
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "8px",
+                            background: "linear-gradient(135deg, var(--lavender) 0%, var(--lavender-secondary) 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.85rem",
+                          }}
+                        >
+                          👤
+                        </div>
+                      ) : (
+                        <div
+                          className={`record-type-icon ${getRecordTypeIconClass(record.type as any)}`}
+                          style={{ width: "32px", height: "32px", fontSize: "0.65rem" }}
+                        >
+                          {record.type.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 500 }}>{record.title}</span>
+                        {isProfile && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--lavender-dark)" }}>
+                            Personal Master Data
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -463,10 +536,10 @@ export function EnhancedSharingSection({
       {/* Patient Access Control / Outgoing Shares */}
       {shares.outgoing.length > 0 && (
         <div className="subsection">
-          <h3>{isPatient ? "Who Has Access to Your Records" : "Records You're Sharing"}</h3>
+          <h3>{isPatient ? "Who Has Access to Your Data" : "Data You're Sharing"}</h3>
           {isPatient && (
             <p className="subsection-desc">
-              These healthcare providers currently have access to your medical records.
+              These healthcare providers currently have access to your data.
               You are in full control — revoke access at any time.
             </p>
           )}
@@ -476,14 +549,24 @@ export function EnhancedSharingSection({
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {/* Group outgoing shares by propertyName */}
               {Array.from(new Set(shares.outgoing.map(s => s.propertyName))).map(propertyName => {
-                const record = parseRecordFromProperty(properties[propertyName] || "");
+                const isProfileShare = propertyName.startsWith(PropertyKeyPrefixes.PROFILE);
+                const record = !isProfileShare ? parseRecordFromProperty(properties[propertyName] || "") : null;
                 const accessors = shares.outgoing.filter(s => s.propertyName === propertyName);
+                
+                // Parse profile data for display
+                let profileDisplayName = "Personal Information";
+                if (isProfileShare && properties[propertyName]) {
+                  try {
+                    const parsed = JSON.parse(properties[propertyName]);
+                    profileDisplayName = `${parsed.firstName || ''} ${parsed.lastName || ''}`.trim() || "Personal Information";
+                  } catch { /* ignore */ }
+                }
                 
                 return (
                   <div 
                     key={propertyName}
                     style={{
-                      border: "1px solid var(--border)",
+                      border: isProfileShare ? "1px solid var(--lavender-secondary)" : "1px solid var(--border)",
                       borderRadius: "12px",
                       overflow: "hidden",
                     }}
@@ -491,22 +574,46 @@ export function EnhancedSharingSection({
                     <div
                       style={{
                         padding: "0.75rem 1rem",
-                        background: "var(--bg-tertiary)",
-                        borderBottom: "1px solid var(--border)",
+                        background: isProfileShare ? "rgba(124, 58, 237, 0.05)" : "var(--bg-tertiary)",
+                        borderBottom: isProfileShare ? "1px solid var(--lavender-secondary)" : "1px solid var(--border)",
                         display: "flex",
                         alignItems: "center",
                         gap: "0.75rem",
                       }}
                     >
-                      <div
-                        className={`record-type-icon ${getRecordTypeIconClass((record?.type || "other") as any)}`}
-                        style={{ width: "28px", height: "28px", fontSize: "0.6rem" }}
-                      >
-                        {(record?.type || "OT").slice(0, 2).toUpperCase()}
+                      {isProfileShare ? (
+                        <div
+                          style={{
+                            width: "28px",
+                            height: "28px",
+                            borderRadius: "6px",
+                            background: "linear-gradient(135deg, var(--lavender) 0%, var(--lavender-secondary) 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.75rem",
+                          }}
+                        >
+                          👤
+                        </div>
+                      ) : (
+                        <div
+                          className={`record-type-icon ${getRecordTypeIconClass((record?.type || "other") as any)}`}
+                          style={{ width: "28px", height: "28px", fontSize: "0.6rem" }}
+                        >
+                          {(record?.type || "OT").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 600, color: isProfileShare ? "var(--lavender-dark)" : undefined }}>
+                          {isProfileShare ? profileDisplayName : (record?.title || propertyName)}
+                        </span>
+                        {isProfileShare && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--lavender-dark)", opacity: 0.8 }}>
+                            Personal Master Data
+                          </span>
+                        )}
                       </div>
-                      <span style={{ fontWeight: 600 }}>
-                        {record?.title || propertyName}
-                      </span>
                       <span style={{ 
                         marginLeft: "auto", 
                         fontSize: "0.8rem", 
@@ -550,12 +657,25 @@ export function EnhancedSharingSection({
           ) : (
             <ul className="share-list">
               {shares.outgoing.map((share) => {
-                const record = parseRecordFromProperty(properties[share.propertyName] || "");
+                const isProfileShare = share.propertyName.startsWith(PropertyKeyPrefixes.PROFILE);
+                const record = !isProfileShare ? parseRecordFromProperty(properties[share.propertyName] || "") : null;
+                
+                // Parse profile data for display
+                let profileDisplayName = "Practice Information";
+                if (isProfileShare && properties[share.propertyName]) {
+                  try {
+                    const parsed = JSON.parse(properties[share.propertyName]);
+                    profileDisplayName = parsed.organizationName 
+                      ? `${parsed.title || ''} ${parsed.firstName || ''} ${parsed.lastName || ''} - ${parsed.organizationName}`.trim()
+                      : `${parsed.firstName || ''} ${parsed.lastName || ''}`.trim() || "Practice Information";
+                  } catch { /* ignore */ }
+                }
+                
                 return (
                   <li key={`${share.targetEntityId}-${share.propertyName}`} className="share-item">
                     <div className="share-info">
-                      <span className="share-property">
-                        {record?.title || share.propertyName}
+                      <span className="share-property" style={isProfileShare ? { color: "var(--lavender-dark)" } : undefined}>
+                        {isProfileShare ? `👤 ${profileDisplayName}` : (record?.title || share.propertyName)}
                       </span>
                       <span className="share-target">
                         → <CopyableEntityId entityId={share.targetEntityId} short />
@@ -581,13 +701,28 @@ export function EnhancedSharingSection({
       {/* Incoming Shares */}
       {shares.incoming.length > 0 && (
         <div className="subsection">
-          <h3>Records Shared With You</h3>
+          <h3>Data Shared With You</h3>
           <ul className="share-list incoming">
             {shares.incoming.map((share) => {
               const data = sharedData.find(
                 (s) => s.sourceEntityId === share.sourceEntityId && s.propertyName === share.propertyName
               );
-              const record = data?.value ? parseRecordFromProperty(data.value) : null;
+              const isProfileShare = share.propertyName.startsWith(PropertyKeyPrefixes.PROFILE);
+              const record = data?.value && !isProfileShare ? parseRecordFromProperty(data.value) : null;
+              
+              // Parse profile data if it's a profile share
+              let profileInfo: { name?: string; org?: string } | null = null;
+              if (isProfileShare && data?.value) {
+                try {
+                  const parsed = JSON.parse(data.value);
+                  profileInfo = {
+                    name: parsed.organizationName 
+                      ? `${parsed.title || ''} ${parsed.firstName || ''} ${parsed.lastName || ''}`.trim()
+                      : `${parsed.firstName || ''} ${parsed.lastName || ''}`.trim(),
+                    org: parsed.organizationName || undefined,
+                  };
+                } catch { /* ignore parse errors */ }
+              }
 
               return (
                 <li key={`${share.sourceEntityId}-${share.propertyName}`} className="share-item">
@@ -595,12 +730,22 @@ export function EnhancedSharingSection({
                     <span className="share-source">
                       <CopyableEntityId entityId={share.sourceEntityId} short />
                     </span>
-                    <span className="share-property">
-                      {record?.title || share.propertyName}
+                    <span className="share-property" style={isProfileShare ? { color: "var(--lavender-dark)" } : undefined}>
+                      {isProfileShare ? (
+                        <>
+                          👤 {profileInfo?.name || "Personal Information"}
+                          {profileInfo?.org && <span style={{ fontSize: "0.8em", opacity: 0.8 }}> ({profileInfo.org})</span>}
+                        </>
+                      ) : (
+                        record?.title || share.propertyName
+                      )}
                     </span>
                     <span className="share-value">
-                      {record?.summary?.slice(0, 50) || data?.value?.slice(0, 50) || "(syncing...)"}
-                      {(record?.summary?.length || 0) > 50 ? "..." : ""}
+                      {isProfileShare 
+                        ? "Master Data" 
+                        : (record?.summary?.slice(0, 50) || data?.value?.slice(0, 50) || "(syncing...)") + 
+                          ((record?.summary?.length || 0) > 50 ? "..." : "")
+                      }
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "0.5rem" }}>
