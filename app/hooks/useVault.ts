@@ -261,7 +261,7 @@ export function useVault() {
     return registration.id;
   };
 
-  const hydrateEntity = async (passkeyId: string, allowCreate: boolean, role?: EntityRole) => {
+  const hydrateEntity = async (passkeyId: string, allowCreate: boolean, role?: EntityRole, skipSession = false) => {
     // Pass role for new entity creation
     const lookup = allowCreate 
       ? await initEntity(passkeyId, role || pendingRoleRef.current || undefined) 
@@ -280,6 +280,12 @@ export function useVault() {
       const wrapped = await wrapPrivateKey(key);
       await storeWrappedKey(lookup.entityId, wrapped);
       setIsNewEntity(true);
+    }
+
+    // Create session BEFORE setting signedIn to prevent race condition
+    // where shares/requests are fetched before session cookie is set
+    if (!skipSession) {
+      await createSession(passkeyId);
     }
 
     setEntityId(lookup.entityId);
@@ -323,7 +329,7 @@ export function useVault() {
       }
 
       await hydrateEntity(credentialId, true, role);
-      await createSession(credentialId);
+      // Session is now created inside hydrateEntity
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Login failed.");
@@ -572,7 +578,8 @@ export function useVault() {
     mutationFn: async () => {
       const session = await getSession();
       if (!session.passkeyId) return;
-      await hydrateEntity(session.passkeyId, false);
+      // Skip session creation since we're restoring from an existing session
+      await hydrateEntity(session.passkeyId, false, undefined, true);
     },
     onError: () => {
       void clearSession();
