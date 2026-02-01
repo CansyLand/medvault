@@ -56,8 +56,10 @@ import { useEventStream, type EntityState, type EntityEvent } from "./useEventSt
 const CREDENTIAL_ID_KEY = "passkeyCredentialId";
 const USER_ID_KEY = "passkeyUserId";
 const ENTITY_KEY_PREFIX = "entityKey:";
+const SHARE_CODES_KEY = "shareCodes";
 
 type WrappedKeyRecord = { wrapped: string; nonce: string };
+type ShareCodesRecord = Record<string, string>; // sourceEntityId -> shareCode
 
 function randomBase64Url(size = 32): string {
   const bytes = new Uint8Array(size);
@@ -236,6 +238,28 @@ export function useVault() {
 
   const clearWrappedKey = async (id: string) => {
     await del(entityKeyStorageKey(id));
+  };
+
+  // Share codes persistence for session restore
+  const loadShareCodes = async (): Promise<ShareCodesRecord> => {
+    const value = await get(SHARE_CODES_KEY);
+    return (value as ShareCodesRecord | undefined) ?? {};
+  };
+
+  const storeShareCode = async (sourceEntityId: string, code: string) => {
+    const existing = await loadShareCodes();
+    existing[sourceEntityId] = code;
+    await set(SHARE_CODES_KEY, existing);
+  };
+
+  const removeShareCode = async (sourceEntityId: string) => {
+    const existing = await loadShareCodes();
+    delete existing[sourceEntityId];
+    await set(SHARE_CODES_KEY, existing);
+  };
+
+  const clearAllShareCodes = async () => {
+    await del(SHARE_CODES_KEY);
   };
 
   const registerNewPasskey = async (): Promise<string> => {
@@ -427,7 +451,9 @@ export function useVault() {
   const consumeShareMutation = useMutation({
     mutationFn: async (code: string) => {
       const result = await consumeShare(code);
-      // Store the code temporarily so we can decrypt events later
+      // Persist the share code for session restore
+      await storeShareCode(result.sourceEntityId, code);
+      // Also update in-memory map
       setPendingShareCodes(prev => new Map(prev).set(result.sourceEntityId, code));
       // Register the key in the event stream
       await eventStream.registerSharedKey(
@@ -463,9 +489,15 @@ export function useVault() {
         params.propertyName
       );
       if (removed) {
-        // If revoking incoming share, unregister the key
+        // If revoking incoming share, unregister the key and remove persisted code
         if (params.sourceEntityId) {
           eventStream.unregisterSharedKey(params.sourceEntityId);
+          await removeShareCode(params.sourceEntityId);
+          setPendingShareCodes(prev => {
+            const updated = new Map(prev);
+            updated.delete(params.sourceEntityId!);
+            return updated;
+          });
         }
         // Refresh shares list
         const updatedShares = await getShares();
@@ -651,17 +683,38 @@ export function useVault() {
   });
 
   // Register keys for incoming shares when we have them
+  // This effect also loads persisted share codes on session restore
   useEffect(() => {
-    shares.incoming.forEach(async (share) => {
-      const code = pendingShareCodes.get(share.sourceEntityId);
-      if (code) {
-        await eventStream.registerSharedKey(
-          share.sourceEntityId,
-          share.keyWrapped as SealedInvitePayload,
-          code
-        );
+    const registerIncomingShareKeys = async () => {
+      if (shares.incoming.length === 0) return;
+      
+      // Load persisted share codes
+      const persistedCodes = await loadShareCodes();
+      
+      for (const share of shares.incoming) {
+        // Check in-memory first, then persisted
+        let code = pendingShareCodes.get(share.sourceEntityId);
+        if (!code && persistedCodes[share.sourceEntityId]) {
+          code = persistedCodes[share.sourceEntityId];
+          // Update in-memory map
+          setPendingShareCodes(prev => new Map(prev).set(share.sourceEntityId, code!));
+        }
+        
+        if (code && share.keyWrapped) {
+          try {
+            await eventStream.registerSharedKey(
+              share.sourceEntityId,
+              share.keyWrapped as SealedInvitePayload,
+              code
+            );
+          } catch (err) {
+            console.error(`Failed to register shared key for ${share.sourceEntityId}:`, err);
+          }
+        }
       }
-    });
+    };
+    
+    registerIncomingShareKeys();
   }, [shares.incoming, pendingShareCodes, eventStream]);
 
   const isBusy = useMemo(

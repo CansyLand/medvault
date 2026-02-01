@@ -65,10 +65,16 @@ const CenterNode: React.FC<NodeProps> = ({ data }) => {
           </div>
         </div>
       </div>
-      <Handle type="source" position={Position.Top} style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
-      <Handle type="source" position={Position.Right} style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
-      <Handle type="source" position={Position.Bottom} style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
-      <Handle type="source" position={Position.Left} style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      {/* Source handles for outgoing connections */}
+      <Handle type="source" position={Position.Top} id="source-top" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      <Handle type="source" position={Position.Right} id="source-right" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      <Handle type="source" position={Position.Left} id="source-left" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      {/* Target handles for incoming connections */}
+      <Handle type="target" position={Position.Top} id="target-top" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      <Handle type="target" position={Position.Right} id="target-right" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
+      <Handle type="target" position={Position.Left} id="target-left" style={{ background: 'var(--teal-deep)', width: '10px', height: '10px' }} />
     </div>
   );
 };
@@ -130,10 +136,16 @@ const EntityNode: React.FC<NodeProps> = ({ data }) => {
           )}
         </div>
       </div>
-      <Handle type="target" position={Position.Top} style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
-      <Handle type="target" position={Position.Right} style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
-      <Handle type="target" position={Position.Bottom} style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
-      <Handle type="target" position={Position.Left} style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      {/* Source handles for outgoing connections */}
+      <Handle type="source" position={Position.Top} id="source-top" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      <Handle type="source" position={Position.Right} id="source-right" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      <Handle type="source" position={Position.Left} id="source-left" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      {/* Target handles for outgoing connections */}
+      <Handle type="target" position={Position.Top} id="target-top" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      <Handle type="target" position={Position.Right} id="target-right" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
+      <Handle type="target" position={Position.Left} id="target-left" style={{ background: 'var(--border-light)', width: '10px', height: '10px' }} />
     </div>
   );
 };
